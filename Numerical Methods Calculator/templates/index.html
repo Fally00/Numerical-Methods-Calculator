@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Numerical Methods Calculator</title>
+  <meta name="description" content="An interactive calculator for numerical methods including Bisection, Doolittle LU, Jacobi, Gauss-Seidel, Newton, False Position, and Thomas Algorithm." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <div class="app-shell">
+
+    <!-- ═══════════════════════════════════════════════════════ SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <i class="fa-solid fa-calculator sidebar-brand-icon"></i>
+        <span class="sidebar-brand-text">NumMethods</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <p class="sidebar-section-label">Methods</p>
+        <ul class="sidebar-list" id="sidebar-list">
+          <li class="sidebar-item active" data-method="bisection">
+            <i class="fa-solid fa-divide sidebar-item-icon"></i>
+            <span>Bisection</span>
+          </li>
+          <li class="sidebar-item" data-method="doolittle">
+            <i class="fa-solid fa-table-cells sidebar-item-icon"></i>
+            <span>Doolittle LU</span>
+          </li>
+          <li class="sidebar-item" data-method="false_position">
+            <i class="fa-solid fa-chart-line sidebar-item-icon"></i>
+            <span>False Position</span>
+          </li>
+          <li class="sidebar-item" data-method="gauss_seidel">
+            <i class="fa-solid fa-rotate sidebar-item-icon"></i>
+            <span>Gauss-Seidel</span>
+          </li>
+          <li class="sidebar-item" data-method="jacobi">
+            <i class="fa-solid fa-sliders sidebar-item-icon"></i>
+            <span>Jacobi</span>
+          </li>
+          <li class="sidebar-item" data-method="newton">
+            <i class="fa-solid fa-wave-square sidebar-item-icon"></i>
+            <span>Newton-Raphson</span>
+          </li>
+          <li class="sidebar-item" data-method="thomas">
+            <i class="fa-solid fa-arrows-left-right sidebar-item-icon"></i>
+            <span>Thomas Algorithm</span>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span>Numerical Methods</span>
+      </div>
+    </aside>
+
+    <!-- ═══════════════════════════════════════════════════════ MAIN CONTENT -->
+    <main class="main-content">
+
+      <!-- ── BISECTION ── -->
+      <section class="method-panel active" id="panel-bisection">
+        <div class="panel-header">
+          <h1 class="panel-title"><i class="fa-solid fa-divide"></i> Bisection Method</h1>
+          <p class="panel-subtitle">Find a root by repeatedly halving an interval [a, b] where f(a)·f(b) &lt; 0.</p>
+        </div>
+        <form class="method-form" id="form-bisection" novalidate>
+          <div class="form-grid">
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="bisection-func">Function f(x)</label>
+              <input class="form-input" type="text" id="bisection-func" placeholder="e.g. x**3 - x - 2" />
+              <span class="form-error" id="err-bisection-func"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="bisection-a">Lower bound a</label>
+              <input class="form-input" type="number" step="any" id="bisection-a" placeholder="e.g. 1" />
+              <span class="form-error" id="err-bisection-a"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="bisection-b">Upper bound b</label>
+              <input class="form-input" type="number" step="any" id="bisection-b" placeholder="e.g. 2" />
+              <span class="form-error" id="err-bisection-b"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="bisection-tol">Tolerance</label>
+              <input class="form-input" type="number" step="any" id="bisection-tol" placeholder="e.g. 0.001" value="0.001" />
+              <span class="form-error" id="err-bisection-tol"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="bisection-iter">Max Iterations</label>
+              <input class="form-input" type="number" id="bisection-iter" placeholder="e.g. 100" value="100" />
+              <span class="form-error" id="err-bisection-iter"></span>
+            </div>
+          </div>
+          <button class="btn-submit" type="submit" id="btn-bisection">
+            <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+            <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving…</span>
+          </button>
+        </form>
+        <div class="results-area" id="results-bisection"></div>
+      </section>
+
+      <!-- ── DOOLITTLE ── -->
+      <section class="method-panel" id="panel-doolittle">
+        <div class="panel-header">
+          <h1 class="panel-title"><i class="fa-solid fa-table-cells"></i> Doolittle LU Decomposition</h1>
+          <p class="panel-subtitle">Decompose matrix A into Lower (L) and Upper (U) triangular matrices, then solve Ax = b.</p>
+        </div>
+        <form class="method-form" id="form-doolittle" novalidate>
+          <div class="form-grid">
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="doolittle-A">Matrix A <span class="form-hint">(rows separated by " / ", values space-separated)</span></label>
+              <textarea class="form-textarea" id="doolittle-A" rows="4" placeholder="2 -6 8 / 5 4 -3 / 3 1 2"></textarea>
+              <span class="form-error" id="err-doolittle-A"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="doolittle-b">Vector b <span class="form-hint">(space-separated)</span></label>
+              <input class="form-input" type="text" id="doolittle-b" placeholder="e.g. 24 2 16" />
+              <span class="form-error" id="err-doolittle-b"></span>
+            </div>
+          </div>
+          <button class="btn-submit" type="submit" id="btn-doolittle">
+            <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+            <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving…</span>
+          </button>
+        </form>
+        <div class="results-area" id="results-doolittle"></div>
+      </section>
+
+      <!-- ── FALSE POSITION ── -->
+      <section class="method-panel" id="panel-false_position">
+        <div class="panel-header">
+          <h1 class="panel-title"><i class="fa-solid fa-chart-line"></i> False Position (Regula Falsi)</h1>
+          <p class="panel-subtitle">Improved bracketing method using a linear interpolant to estimate the root.</p>
+        </div>
+        <form class="method-form" id="form-false_position" novalidate>
+          <div class="form-grid">
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="fp-func">Function f(x)</label>
+              <input class="form-input" type="text" id="fp-func" placeholder="e.g. x**3 - x - 2" />
+              <span class="form-error" id="err-fp-func"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="fp-a">Lower bound a</label>
+              <input class="form-input" type="number" step="any" id="fp-a" placeholder="e.g. 1" />
+              <span class="form-error" id="err-fp-a"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="fp-b">Upper bound b</label>
+              <input class="form-input" type="number" step="any" id="fp-b" placeholder="e.g. 2" />
+              <span class="form-error" id="err-fp-b"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="fp-tol">Tolerance</label>
+              <input class="form-input" type="number" step="any" id="fp-tol" placeholder="e.g. 0.001" value="0.001" />
+              <span class="form-error" id="err-fp-tol"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="fp-iter">Max Iterations</label>
+              <input class="form-input" type="number" id="fp-iter" placeholder="e.g. 100" value="100" />
+              <span class="form-error" id="err-fp-iter"></span>
+            </div>
+          </div>
+          <button class="btn-submit" type="submit" id="btn-false_position">
+            <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+            <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving…</span>
+          </button>
+        </form>
+        <div class="results-area" id="results-false_position"></div>
+      </section>
+
+      <!-- ── GAUSS-SEIDEL ── -->
+      <section class="method-panel" id="panel-gauss_seidel">
+        <div class="panel-header">
+          <h1 class="panel-title"><i class="fa-solid fa-rotate"></i> Gauss-Seidel Method</h1>
+          <p class="panel-subtitle">Iterative method for solving linear systems Ax = b using updated values immediately.</p>
+        </div>
+        <form class="method-form" id="form-gauss_seidel" novalidate>
+          <div class="form-grid">
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="gs-A">Matrix A <span class="form-hint">(rows separated by " / ", values space-separated)</span></label>
+              <textarea class="form-textarea" id="gs-A" rows="4" placeholder="4 1 2 / 3 5 1 / 1 1 3"></textarea>
+              <span class="form-error" id="err-gs-A"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="gs-b">Vector b <span class="form-hint">(space-separated)</span></label>
+              <input class="form-input" type="text" id="gs-b" placeholder="e.g. 4 7 3" />
+              <span class="form-error" id="err-gs-b"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="gs-x0">Initial guess x₀ <span class="form-hint">(space-separated)</span></label>
+              <input class="form-input" type="text" id="gs-x0" placeholder="e.g. 0 0 0" />
+              <span class="form-error" id="err-gs-x0"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="gs-tol">Tolerance</label>
+              <input class="form-input" type="number" step="any" id="gs-tol" placeholder="e.g. 0.001" value="0.001" />
+              <span class="form-error" id="err-gs-tol"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="gs-iter">Max Iterations</label>
+              <input class="form-input" type="number" id="gs-iter" placeholder="e.g. 100" value="100" />
+              <span class="form-error" id="err-gs-iter"></span>
+            </div>
+          </div>
+          <button class="btn-submit" type="submit" id="btn-gauss_seidel">
+            <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+            <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving…</span>
+          </button>
+        </form>
+        <div class="results-area" id="results-gauss_seidel"></div>
+      </section>
+
+      <!-- ── JACOBI ── -->
+      <section class="method-panel" id="panel-jacobi">
+        <div class="panel-header">
+          <h1 class="panel-title"><i class="fa-solid fa-sliders"></i> Jacobi Method</h1>
+          <p class="panel-subtitle">Iterative method for solving linear systems using previous iteration values only.</p>
+        </div>
+        <form class="method-form" id="form-jacobi" novalidate>
+          <div class="form-grid">
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="jacobi-A">Matrix A <span class="form-hint">(rows separated by " / ", values space-separated)</span></label>
+              <textarea class="form-textarea" id="jacobi-A" rows="4" placeholder="4 1 2 / 3 5 1 / 1 1 3"></textarea>
+              <span class="form-error" id="err-jacobi-A"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="jacobi-b">Vector b <span class="form-hint">(space-separated)</span></label>
+              <input class="form-input" type="text" id="jacobi-b" placeholder="e.g. 4 7 3" />
+              <span class="form-error" id="err-jacobi-b"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="jacobi-x0">Initial guess x₀ <span class="form-hint">(space-separated)</span></label>
+              <input class="form-input" type="text" id="jacobi-x0" placeholder="e.g. 0 0 0" />
+              <span class="form-error" id="err-jacobi-x0"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="jacobi-tol">Tolerance</label>
+              <input class="form-input" type="number" step="any" id="jacobi-tol" placeholder="e.g. 0.001" value="0.001" />
+              <span class="form-error" id="err-jacobi-tol"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="jacobi-iter">Max Iterations</label>
+              <input class="form-input" type="number" id="jacobi-iter" placeholder="e.g. 100" value="100" />
+              <span class="form-error" id="err-jacobi-iter"></span>
+            </div>
+          </div>
+          <button class="btn-submit" type="submit" id="btn-jacobi">
+            <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+            <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving…</span>
+          </button>
+        </form>
+        <div class="results-area" id="results-jacobi"></div>
+      </section>
+
+      <!-- ── NEWTON-RAPHSON ── -->
+      <section class="method-panel" id="panel-newton">
+        <div class="panel-header">
+          <h1 class="panel-title"><i class="fa-solid fa-wave-square"></i> Newton-Raphson Method</h1>
+          <p class="panel-subtitle">Fast root-finding using the function and its derivative for tangent-line approximation.</p>
+        </div>
+        <form class="method-form" id="form-newton" novalidate>
+          <div class="form-grid">
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="newton-func">Function f(x)</label>
+              <input class="form-input" type="text" id="newton-func" placeholder="e.g. x**4 - 11*x + 8" />
+              <span class="form-error" id="err-newton-func"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="newton-dfunc">Derivative f'(x)</label>
+              <input class="form-input" type="text" id="newton-dfunc" placeholder="e.g. 4*x**3 - 11" />
+              <span class="form-error" id="err-newton-dfunc"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="newton-x0">Initial guess x₀</label>
+              <input class="form-input" type="number" step="any" id="newton-x0" placeholder="e.g. 2" />
+              <span class="form-error" id="err-newton-x0"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="newton-tol">Tolerance</label>
+              <input class="form-input" type="number" step="any" id="newton-tol" placeholder="e.g. 0.00001" value="0.00001" />
+              <span class="form-error" id="err-newton-tol"></span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="newton-iter">Max Iterations</label>
+              <input class="form-input" type="number" id="newton-iter" placeholder="e.g. 100" value="100" />
+              <span class="form-error" id="err-newton-iter"></span>
+            </div>
+          </div>
+          <button class="btn-submit" type="submit" id="btn-newton">
+            <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+            <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving…</span>
+          </button>
+        </form>
+        <div class="results-area" id="results-newton"></div>
+      </section>
+
+      <!-- ── THOMAS ALGORITHM ── -->
+      <section class="method-panel" id="panel-thomas">
+        <div class="panel-header">
+          <h1 class="panel-title"><i class="fa-solid fa-arrows-left-right"></i> Thomas Algorithm</h1>
+          <p class="panel-subtitle">Efficient solver for tridiagonal linear systems. Provide three diagonals and the RHS vector.</p>
+        </div>
+        <form class="method-form" id="form-thomas" novalidate>
+          <div class="form-grid">
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="thomas-a">Lower diagonal a <span class="form-hint">(space-separated, n−1 values)</span></label>
+              <input class="form-input" type="text" id="thomas-a" placeholder="e.g. 1 1 1" />
+              <span class="form-error" id="err-thomas-a"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="thomas-b">Main diagonal b <span class="form-hint">(space-separated, n values)</span></label>
+              <input class="form-input" type="text" id="thomas-b" placeholder="e.g. 2 2 2 2" />
+              <span class="form-error" id="err-thomas-b"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="thomas-c">Upper diagonal c <span class="form-hint">(space-separated, n−1 values)</span></label>
+              <input class="form-input" type="text" id="thomas-c" placeholder="e.g. 1 1 1" />
+              <span class="form-error" id="err-thomas-c"></span>
+            </div>
+            <div class="form-group form-group-wide">
+              <label class="form-label" for="thomas-d">RHS vector d <span class="form-hint">(space-separated, n values)</span></label>
+              <input class="form-input" type="text" id="thomas-d" placeholder="e.g. 1 2 3 4" />
+              <span class="form-error" id="err-thomas-d"></span>
+            </div>
+          </div>
+          <button class="btn-submit" type="submit" id="btn-thomas">
+            <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+            <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving…</span>
+          </button>
+        </form>
+        <div class="results-area" id="results-thomas"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
