@@ -4,9 +4,27 @@
 from flask import Blueprint, request, jsonify
 from sympy import symbols, sympify, lambdify
 
+import re
+
 bp = Blueprint("bisection", __name__)
 
 _x = symbols("x")
+
+
+def _preprocess_func(s: str) -> str:
+    """Normalize user-typed math notation to SymPy-compatible syntax."""
+    # Aliases for common notations
+    s = re.sub(r'\bln\s*\(', 'log(', s)          # ln( → log(
+    s = re.sub(r'\barcsin\s*\(', 'asin(', s)      # arcsin → asin
+    s = re.sub(r'\barccos\s*\(', 'acos(', s)      # arccos → acos
+    s = re.sub(r'\barctan\s*\(', 'atan(', s)      # arctan → atan
+    s = re.sub(r'\btg\s*\(', 'tan(', s)           # tg( → tan(
+    s = re.sub(r'\blg\s*\(', 'log(', s)           # lg( → log( (natural log default)
+    # Bare 'e' (Euler's number) — SymPy uses E; replace only when isolated
+    s = re.sub(r'\be\b', 'E', s)                  # e → E (SymPy's Euler constant)
+    # Power notation (SymPy also accepts ^, but be safe)
+    s = s.replace('^', '**')
+    return s
 
 
 # ── Core function ───────────────────────────────────────────────────────────────
@@ -29,9 +47,10 @@ def bisection_method(params: dict) -> dict:
         a = float(a)
         b = float(b)
 
-        # ── Parse function safely with SymPy ───────────────────────────────────
-        expr = sympify(func_str)
+        # ── Preprocess then parse function with SymPy ──────────────────────────
+        expr = sympify(_preprocess_func(func_str))
         f    = lambdify(_x, expr, "math")
+
 
         steps: list[str] = []
         steps.append(f"Parsed function: f(x) = {expr}")
@@ -53,8 +72,9 @@ def bisection_method(params: dict) -> dict:
 
         # ── Iteration ─────────────────────────────────────────────────────────
         iterations: list[dict] = []
-        c      = a          # will be overwritten on first iteration
-        c_prev = a
+        c       = a          # will be overwritten on first iteration
+        c_prev  = a
+        stag    = 0          # consecutive stagnation counter
 
         for it in range(1, max_iter + 1):
             # Standard midpoint formula
@@ -78,12 +98,23 @@ def bisection_method(params: dict) -> dict:
                 f"c = (a+b)/2 = {c:.6f}, f(c) = {fc:.6f}, |error| = {error:.6f}"
             )
 
-            # Convergence check (skip iteration 1 — no meaningful prior estimate)
+            # Tolerance convergence (skip iteration 1)
             if it > 1 and error < tol:
                 steps.append(
                     f"Converged after {it} iterations (|error| = {error:.6f} < {tol})."
                 )
                 break
+
+            # Stagnation guard — answer no longer changes at machine precision
+            if it > 1 and error < 1e-12:
+                stag += 1
+                if stag >= 2:
+                    steps.append(
+                        f"Stopped at iteration {it}: answer stagnated (|error| < 1e-12 for 2 consecutive iterations)."
+                    )
+                    break
+            else:
+                stag = 0
 
             # Update interval
             if fa * fc < 0:

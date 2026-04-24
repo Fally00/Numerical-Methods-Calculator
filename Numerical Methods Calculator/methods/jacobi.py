@@ -111,10 +111,11 @@ def jacobi_method(params: dict) -> dict:
         steps.append("Jacobi rearrangement of equations:")
         steps.extend(f"  {eq}" for eq in eq_strings)
 
-        # ── Iteration ─────────────────────────────────────────────────────────
+        # ── Iteration ─────────────────────────────────────────────────────
         x     = x0[:]
         x_new = x0[:]
         iterations: list[dict] = []
+        stag = 0
 
         for it in range(1, max_iter + 1):
             for i in range(n):
@@ -140,6 +141,16 @@ def jacobi_method(params: dict) -> dict:
                 steps.append(f"Converged after {it} iterations (error < {tol}).")
                 x = x_new[:]
                 break
+
+            # Stagnation guard
+            if error < 1e-12:
+                stag += 1
+                if stag >= 2:
+                    steps.append(f"Stopped at iteration {it}: solution stagnated (|error| < 1e-12).")
+                    x = x_new[:]
+                    break
+            else:
+                stag = 0
 
             x = x_new[:]
         else:

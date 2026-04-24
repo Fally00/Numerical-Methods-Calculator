@@ -30,6 +30,7 @@ def gauss_seidel_method(params: dict) -> dict:
         steps.append(f"Initial guess x0 = {x.tolist()}")
 
         converged = False
+        stag = 0
         for iteration in range(max_iter):
             x_old = x.copy()
             x_new = x.copy()
@@ -58,6 +59,16 @@ def gauss_seidel_method(params: dict) -> dict:
                 converged = True
                 steps.append(f"Converged after {iteration + 1} iterations.")
                 break
+
+            # Stagnation guard
+            if error < 1e-12:
+                stag += 1
+                if stag >= 2:
+                    converged = True
+                    steps.append(f"Stopped at iteration {iteration + 1}: solution stagnated (|error| < 1e-12).")
+                    break
+            else:
+                stag = 0
         else:
             steps.append(f"Did not converge within {max_iter} iterations.")
 

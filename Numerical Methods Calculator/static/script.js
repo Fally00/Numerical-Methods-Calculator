@@ -83,52 +83,68 @@ function renderTridiagInput(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   const n = state.matrixSizes[containerId];
-  
+
+  // Column-per-variable layout — rows: c (upper), b (main), a (lower), | d (RHS)
   let html = `
     <div class="matrix-size-control">
       <span class="matrix-size-label">System Size (n)</span>
       <div class="size-stepper">
         <button type="button" class="size-btn size-minus" data-container="${containerId}">-</button>
-        <div class="size-display">${n}<span class="size-suffix">×${n}</span></div>
+        <div class="size-display">${n}<span class="size-suffix">&times;${n}</span></div>
         <button type="button" class="size-btn size-plus" data-container="${containerId}">+</button>
       </div>
     </div>
-    <div class="tridiag-wrapper">
-      <div class="tridiag-row">
-        <div class="tridiag-row-label">Upper c</div>
-        <div class="tridiag-cells">
-          <div class="tridiag-gap"><div class="tridiag-gap-dot"></div></div>
-  `;
-  for(let i=0; i<n-1; i++) {
-    html += `<input type="number" step="any" required class="matrix-cell cell-super-diag" data-matrix="c" data-row="${i}" value="">`;
+    <div class="tridiag-table-wrap">
+      <table class="tridiag-table">
+        <thead>
+          <tr>
+            <th class="tridiag-row-header"></th>`;
+
+  for (let col = 0; col < n; col++) {
+    html += `<th class="tridiag-col-header">x${col + 1}</th>`;
   }
-  html += `</div></div>
-      <div class="tridiag-row">
-        <div class="tridiag-row-label">Main b</div>
-        <div class="tridiag-cells">
-  `;
-  for(let i=0; i<n; i++) {
-    html += `<input type="number" step="any" required class="matrix-cell cell-diagonal" data-matrix="b" data-row="${i}" value="">`;
+  html += `</tr></thead><tbody>`;
+
+  // Row c: super-diagonal — exists at col 0..n-2 (c[i] couples x[i] and x[i+1])
+  html += `<tr><td class="tridiag-row-header"><span class="tridiag-diag-label tridiag-super">c</span><span class="tridiag-diag-sub">upper</span></td>`;
+  for (let col = 0; col < n; col++) {
+    if (col < n - 1) {
+      html += `<td><input type="number" step="any" class="matrix-cell cell-super-diag tridiag-cell" data-matrix="c" data-row="${col}" data-col="0" data-trow="0" data-tcol="${col}" value=""></td>`;
+    } else {
+      html += `<td><div class="tridiag-cell-blank"></div></td>`;
+    }
   }
-  html += `</div></div>
-      <div class="tridiag-row">
-        <div class="tridiag-row-label">Lower a</div>
-        <div class="tridiag-cells">
-  `;
-  for(let i=0; i<n-1; i++) {
-    html += `<input type="number" step="any" required class="matrix-cell cell-sub-diag" data-matrix="a" data-row="${i}" value="">`;
+  html += `</tr>`;
+
+  // Row b: main diagonal — all n columns
+  html += `<tr><td class="tridiag-row-header"><span class="tridiag-diag-label tridiag-main">b</span><span class="tridiag-diag-sub">main</span></td>`;
+  for (let col = 0; col < n; col++) {
+    html += `<td><input type="number" step="any" class="matrix-cell cell-diagonal tridiag-cell" data-matrix="b" data-row="${col}" data-col="0" data-trow="1" data-tcol="${col}" value=""></td>`;
   }
-  html += `<div class="tridiag-gap"><div class="tridiag-gap-dot"></div></div>
-        </div></div>
-      <div class="tridiag-row" style="margin-top: 8px;">
-        <div class="tridiag-row-label">RHS d</div>
-        <div class="tridiag-cells">
-  `;
-  for(let i=0; i<n; i++) {
-    html += `<input type="number" step="any" required class="matrix-cell" data-matrix="d" data-row="${i}" value="">`;
+  html += `</tr>`;
+
+  // Row a: sub-diagonal — blank at col 0, exists at col 1..n-1
+  html += `<tr><td class="tridiag-row-header"><span class="tridiag-diag-label tridiag-sub">a</span><span class="tridiag-diag-sub">lower</span></td>`;
+  for (let col = 0; col < n; col++) {
+    if (col > 0) {
+      html += `<td><input type="number" step="any" class="matrix-cell cell-sub-diag tridiag-cell" data-matrix="a" data-row="${col - 1}" data-col="0" data-trow="2" data-tcol="${col}" value=""></td>`;
+    } else {
+      html += `<td><div class="tridiag-cell-blank"></div></td>`;
+    }
   }
-  html += `</div></div></div>`;
-  
+  html += `</tr>`;
+
+  // Separator
+  html += `<tr class="tridiag-separator"><td colspan="${n + 1}"></td></tr>`;
+
+  // Row d: RHS — all n columns
+  html += `<tr><td class="tridiag-row-header"><span class="tridiag-diag-label tridiag-rhs">d</span><span class="tridiag-diag-sub">rhs</span></td>`;
+  for (let col = 0; col < n; col++) {
+    html += `<td><input type="number" step="any" class="matrix-cell tridiag-cell" data-matrix="d" data-row="${col}" data-col="0" data-trow="3" data-tcol="${col}" value=""></td>`;
+  }
+  html += `</tr>`;
+
+  html += `</tbody></table></div>`;
   container.innerHTML = html;
 }
 
@@ -203,7 +219,7 @@ function renderError(containerId, message) {
 }
 
 function renderSteps(steps) {
-  if (!steps || steps.length === 0) return "";
+  if (!steps || steps.length === 0) return { side: '', below: '' };
   const lines = steps.map(s => {
     let cls = "steps-line";
     const ls = s.toLowerCase();
@@ -212,8 +228,8 @@ function renderSteps(steps) {
     else if (ls.startsWith("setup") || ls.includes("parsing") || ls.startsWith("[")) cls += " step-muted";
     return `<div class="${cls}">${escHtml(s)}</div>`;
   }).join("");
-  return `
-    <div class="steps-panel" id="steps-panel-inner">
+  const panel = `
+    <div class="steps-panel steps-panel-fixed open" id="steps-panel-inner">
       <button type="button" class="steps-toggle" onclick="toggleSteps(this)">
         <span class="steps-toggle-label">
           <i class="fa-solid fa-list-ol"></i> Solution Steps (${steps.length})
@@ -222,6 +238,7 @@ function renderSteps(steps) {
       </button>
       <div class="steps-body">${lines}</div>
     </div>`;
+  return { side: panel, below: '' };
 }
 
 function renderIterationsTable(iterations, columns) {
@@ -282,6 +299,135 @@ window.toggleSteps = function(btn) {
   panel.classList.toggle("open");
 }
 
+// ── Alias table: user notation → Python/SymPy compatible ──────────────────────
+const FUNC_ALIASES = [
+  [/\bln\s*(?=\()/g,      'log'],       // ln( → log(
+  [/\barc\s*sin\s*(?=\()/g, 'asin'],   // arcsin( → asin(
+  [/\barc\s*cos\s*(?=\()/g, 'acos'],   // arccos( → acos(
+  [/\barc\s*tan\s*(?=\()/g, 'atan'],   // arctan( → atan(
+  [/\btg\s*(?=\()/g,       'tan'],      // tg( → tan(
+  [/\bctg\s*(?=\()/g,      '1/tan'],   // ctg( → 1/tan(
+  [/\blg\s*(?=\()/g,       'log10'],   // lg( → log10(
+];
+
+// JS Math namespace for preview evaluation
+const JS_MATH = {
+  sin: Math.sin, cos: Math.cos, tan: Math.tan,
+  asin: Math.asin, acos: Math.acos, atan: Math.atan,
+  log: Math.log, log10: Math.log10,
+  exp: Math.exp, sqrt: Math.sqrt, abs: Math.abs,
+  sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh,
+  sign: Math.sign, ceil: Math.ceil, floor: Math.floor, round: Math.round,
+  pi: Math.PI, e: Math.E,
+};
+
+// Convert user-friendly syntax → Python-safe syntax for the backend
+function normalizeFuncExpr(raw) {
+  let s = raw.trim();
+
+  // 1. Normalize function name aliases BEFORE anything else
+  for (const [pat, rep] of FUNC_ALIASES) s = s.replace(pat, rep);
+
+  // 2. Handle Euler's number 'e' standing alone (not part of exp/etc.)
+  //    e^x → exp(1)**x, e*x → exp(1)*x, e+... etc.
+  //    Only replace bare 'e' word that is NOT followed by a letter (so 'exp' is safe)
+  s = s.replace(/\be\b/g, 'exp(1)');
+
+  // 3. Power: x^2 → x**2
+  s = s.replace(/\^/g, '**');
+
+  // 4. Implicit multiplication: 2x → 2*x, 2( → 2*(
+  s = s.replace(/([0-9])\s*([a-zA-Z(])/g, '$1*$2');
+
+  // 5. Implicit multiplication: )x → )*x, )( → )*(  
+  s = s.replace(/\)\s*([a-zA-Z(])/g, ')*$1');
+
+  return s;
+}
+
+// Build human-readable display string from raw input (cosmetic only)
+function buildDisplay(raw) {
+  return raw
+    .replace(/\*\*/g, '^')
+    .replace(/\*/g, '\u00b7')
+    .replace(/\bln\b/g, 'ln')
+    .trim();
+}
+
+// Check if parentheses are balanced
+function parenBalanced(s) {
+  let d = 0;
+  for (const c of s) {
+    if (c === '(') d++;
+    else if (c === ')') d--;
+    if (d < 0) return false;
+  }
+  return d === 0;
+}
+
+// Build human-readable preview from raw input
+function buildPreview(raw) {
+  if (!raw || !raw.trim()) return { text: 'type a function\u2026', cls: 'preview-empty' };
+
+  const display = buildDisplay(raw);
+
+  // Quick structural check: unbalanced parens are definitely wrong
+  if (!parenBalanced(raw)) {
+    return { text: display + '  [unmatched parentheses]', cls: 'preview-error' };
+  }
+
+  // Normalize then try JS evaluation at x = 1 to catch obvious errors.
+  // Build a safe expression for JS by mapping Python function names to Math.*
+  try {
+    const normalized = normalizeFuncExpr(raw);
+    // Build JS-evaluable expression: replace known function names with Math.* safely
+    // Use a token replacer instead of chained .replace() to avoid double-hits
+    const jsExpr = normalized
+      // Replace x with numeric value first (word boundary only)
+      .replace(/\bx\b/g, '(1)')
+      // Replace math functions — order matters: longer names first
+      .replace(/\basin\b/g, '__asin').replace(/\bacos\b/g, '__acos').replace(/\batan\b/g, '__atan')
+      .replace(/\bsinh\b/g, '__sinh').replace(/\bcosh\b/g, '__cosh').replace(/\btanh\b/g, '__tanh')
+      .replace(/\bsqrt\b/g, '__sqrt').replace(/\babs\b/g, '__abs')
+      .replace(/\bsin\b/g,  '__sin').replace(/\bcos\b/g, '__cos').replace(/\btan\b/g, '__tan')
+      .replace(/\blog10\b/g,'__log10').replace(/\blog\b/g,'__log').replace(/\bexp\b/g,'__exp')
+      .replace(/\bsign\b/g, '__sign').replace(/\bceil\b/g,'__ceil').replace(/\bfloor\b/g,'__floor')
+      .replace(/\bpi\b/g,   '(3.14159265358979)')
+      // Map tokens back to Math.*
+      .replace(/__asin/g, 'Math.asin').replace(/__acos/g, 'Math.acos').replace(/__atan/g, 'Math.atan')
+      .replace(/__sinh/g, 'Math.sinh').replace(/__cosh/g, 'Math.cosh').replace(/__tanh/g, 'Math.tanh')
+      .replace(/__sqrt/g, 'Math.sqrt').replace(/__abs/g,  'Math.abs')
+      .replace(/__sin/g,  'Math.sin') .replace(/__cos/g,  'Math.cos') .replace(/__tan/g,  'Math.tan')
+      .replace(/__log10/g,'Math.log10').replace(/__log/g, 'Math.log').replace(/__exp/g, 'Math.exp')
+      .replace(/__sign/g, 'Math.sign').replace(/__ceil/g,'Math.ceil').replace(/__floor/g,'Math.floor');
+
+    // eslint-disable-next-line no-new-func
+    const val = new Function('return ' + jsExpr)();
+    if (isNaN(val) || !isFinite(val)) {
+      // NaN/Inf at x=1 is fine (e.g. log(x-1) at x=1 is -inf) — not an error
+      return { text: display, cls: 'preview-ok' };
+    }
+    return { text: display, cls: 'preview-ok' };
+  } catch (_) {
+    // JS eval failed — could be valid Python/SymPy syntax we don't understand in JS.
+    // Only flag as error if parens are fine (already checked above).
+    // Show as neutral rather than blocking the user.
+    return { text: display, cls: 'preview-ok' };
+  }
+}
+
+
+function bindFuncPreview(inputId, previewId) {
+  const input   = document.getElementById(inputId);
+  const preview = document.getElementById(previewId);
+  if (!input || !preview) return;
+  input.addEventListener('input', () => {
+    const { text, cls } = buildPreview(input.value);
+    preview.textContent = text;
+    preview.className = 'func-preview-text ' + cls;
+  });
+}
+
 async function callApi(endpoint, body) {
   const res = await fetch(endpoint, {
     method:  "POST",
@@ -290,6 +436,7 @@ async function callApi(endpoint, body) {
   });
   return res.json();
 }
+
 
 // ═══════════════════════════════════════════════════════════════════
 //  APP INITIALIZATION & EVENT LISTENERS
@@ -302,6 +449,24 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSystemInput('gauss_seidel-matrix-container', true);
   renderSystemInput('jacobi-matrix-container', true);
   renderTridiagInput('thomas-matrix-container');
+
+  // Bind function live-preview
+  bindFuncPreview('bisection-func',  'bisection-func-preview');
+  bindFuncPreview('fp-func',         'fp-func-preview');
+  bindFuncPreview('newton-func',     'newton-func-preview');
+  bindFuncPreview('newton-dfunc',    'newton-dfunc-preview');
+
+  // Hint chip click-to-insert
+  document.addEventListener('click', (e) => {
+    if (!e.target.classList.contains('func-hint-chip')) return;
+    const targetId = e.target.dataset.target;
+    const insert   = e.target.dataset.insert;
+    const input    = document.getElementById(targetId);
+    if (!input) return;
+    input.value = insert;
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+  });
 
   // Sidebar Logic
   const sidebarOverlay = document.getElementById("sidebar-overlay");
@@ -361,37 +526,86 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Matrix cell navigation
+  // ─── Matrix / Tridiag keyboard navigation ────────────────────────────────
+  // Tab → move right (then wrap to next row), Enter → move down,
+  // Shift+Tab → move left (then wrap up), Arrow keys still work.
   document.addEventListener("keydown", (e) => {
-    if(!e.target.classList.contains('matrix-cell')) return;
-    const m = e.target.dataset.matrix;
-    const r = parseInt(e.target.dataset.row);
-    const c = parseInt(e.target.dataset.col);
-    
-    let newR = r;
-    let newC = c;
-    
-    if (e.key === "ArrowUp") newR--;
-    if (e.key === "ArrowDown") newR++;
-    if (e.key === "ArrowLeft" && e.target.selectionStart === 0 && !isNaN(c)) newC--;
-    if (e.key === "ArrowRight" && e.target.selectionEnd === e.target.value.length && !isNaN(c)) newC++;
-    
-    const container = e.target.closest('.matrix-outer, .tridiag-wrapper');
+    if (!e.target.classList.contains('matrix-cell')) return;
+
+    const cell = e.target;
+    const container = cell.closest('.matrix-outer, .tridiag-table-wrap, .tridiag-wrapper, .vector-bracket');
     if (!container) return;
 
-    if (newR !== r || newC !== c) {
-      let nextCell;
-      if (!isNaN(c)) {
-        nextCell = container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${newR}"][data-col="${newC}"]`);
-      } else {
-        nextCell = container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${newR}"]`);
-      }
-      if (nextCell) {
+    // ── Tridiagonal table nav (uses data-trow / data-tcol) ──
+    if (cell.dataset.trow !== undefined) {
+      const allCells = Array.from(container.querySelectorAll('.tridiag-cell'));
+      const idx = allCells.indexOf(cell);
+
+      if (e.key === 'Tab' && !e.shiftKey) {
         e.preventDefault();
-        nextCell.focus();
+        const next = allCells[idx + 1];
+        if (next) next.focus();
+      } else if (e.key === 'Tab' && e.shiftKey) {
+        e.preventDefault();
+        const prev = allCells[idx - 1];
+        if (prev) prev.focus();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        // Move to same column in the next data row
+        const trow = parseInt(cell.dataset.trow);
+        const tcol = parseInt(cell.dataset.tcol);
+        const next = container.querySelector(`.tridiag-cell[data-trow="${trow + 1}"][data-tcol="${tcol}"]`) ||
+                     container.querySelector(`.tridiag-cell[data-trow="${trow + 1}"]`);
+        if (next) next.focus();
+      }
+      return;
+    }
+
+    // ── Square matrix / vector nav (data-row / data-col) ──
+    const m = cell.dataset.matrix;
+    const r = parseInt(cell.dataset.row);
+    const c = parseInt(cell.dataset.col);
+
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      // Try next col, else first col of next row
+      let next = container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${r}"][data-col="${c + 1}"]`) ||
+                 container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${r + 1}"][data-col="0"]`) ||
+                 container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${r + 1}"]`);
+      if (next) next.focus();
+
+    } else if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      let n_ = state.matrixSizes[container.closest('[id]')?.id] || 8;
+      let prev = container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${r}"][data-col="${c - 1}"]`) ||
+                 container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${r - 1}"][data-col="${n_ - 1}"]`);
+      if (prev) prev.focus();
+
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      // Move down (same col)
+      let next = !isNaN(c)
+        ? container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${r + 1}"][data-col="${c}"]`)
+        : container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${r + 1}"]`);
+      if (next) next.focus();
+
+    } else {
+      // Arrow key fallback
+      let newR = r, newC = c;
+      if (e.key === 'ArrowUp')    newR--;
+      if (e.key === 'ArrowDown')  newR++;
+      if (e.key === 'ArrowLeft'  && cell.selectionStart === 0 && !isNaN(c)) newC--;
+      if (e.key === 'ArrowRight' && cell.selectionEnd === cell.value.length && !isNaN(c)) newC++;
+
+      if (newR !== r || newC !== c) {
+        let nextCell = !isNaN(c)
+          ? container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${newR}"][data-col="${newC}"]`)
+          : container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${newR}"]`);
+        if (nextCell) { e.preventDefault(); nextCell.focus(); }
       }
     }
   });
+
 
 
   // ─────────────────────────────────────────────────────────────────
@@ -420,7 +634,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setLoading(btn, true);
     try {
       const data = await callApi("/api/bisection", {
-        function:  funcEl.value.trim(),
+        function:  normalizeFuncExpr(funcEl.value.trim()),
         a:         parseFloat(aEl.value),
         b:         parseFloat(bEl.value),
         tolerance: parseFloat(tolEl.value) || 0.001,
@@ -430,18 +644,22 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!data.success) { renderError("results-bisection", data.error); return; }
 
       const r = data.result;
+      const steps = renderSteps(data.steps);
       document.getElementById("results-bisection").innerHTML = `
-        <div class="result-panel">
-          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
-          <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-          <div class="result-answer">Root ≈ ${r.root}</div>
-          <div class="result-meta">
-            f(root) = ${r.f_root} &nbsp;|&nbsp;
-            Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
-            Converged: ${r.converged ? "✓ Yes" : "✗ No"}
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+            <div class="result-answer">Root &asymp; ${r.root}</div>
+            <div class="result-meta">
+              f(root) = ${r.f_root} &nbsp;|&nbsp;
+              Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
+              Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+            </div>
           </div>
+          ${steps.side}
         </div>
-        ${renderSteps(data.steps)}
+        ${steps.below}
         ${renderIterationsTable(data.iterations, [
           { key: "iter",  label: "Iter" },
           { key: "a",     label: "a" },
@@ -484,19 +702,23 @@ document.addEventListener("DOMContentLoaded", () => {
         `<div class="result-matrix-row">[ ${row.map(v => String(v).padStart(10)).join("  ")} ]</div>`
       ).join("");
 
+      const steps = renderSteps(data.steps);
       document.getElementById("results-doolittle").innerHTML = `
-        <div class="result-panel">
-          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(r.X))}')"><i class="fa-regular fa-copy"></i> Copy</button>
-          <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
-          <div class="result-answer">${xStr}</div>
-          <div class="result-matrix-label">L matrix</div>
-          ${formatMatrix(r.L)}
-          <div class="result-matrix-label">U matrix</div>
-          ${formatMatrix(r.U)}
-          <div class="result-matrix-label">Forward substitution V</div>
-          <div class="result-matrix-row">[ ${r.V.join("  ")} ]</div>
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(r.X))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
+            <div class="result-answer">${xStr}</div>
+            <div class="result-matrix-label">L matrix</div>
+            ${formatMatrix(r.L)}
+            <div class="result-matrix-label">U matrix</div>
+            ${formatMatrix(r.U)}
+            <div class="result-matrix-label">Forward substitution V</div>
+            <div class="result-matrix-row">[ ${r.V.join("  ")} ]</div>
+          </div>
+          ${steps.side}
         </div>
-        ${renderSteps(data.steps)}`;
+        ${steps.below}`;
     } catch (err) {
       renderError("results-doolittle", "Network error: " + err.message);
     } finally {
@@ -530,7 +752,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setLoading(btn, true);
     try {
       const data = await callApi("/api/false_position", {
-        function:  funcEl.value.trim(),
+        function:  normalizeFuncExpr(funcEl.value.trim()),
         a:         parseFloat(aEl.value),
         b:         parseFloat(bEl.value),
         tolerance: parseFloat(tolEl.value) || 0.001,
@@ -540,18 +762,22 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!data.success) { renderError("results-false_position", data.error); return; }
 
       const r = data.result;
+      const steps = renderSteps(data.steps);
       document.getElementById("results-false_position").innerHTML = `
-        <div class="result-panel">
-          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
-          <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-          <div class="result-answer">Root ≈ ${r.root}</div>
-          <div class="result-meta">
-            f(root) = ${r.f_root} &nbsp;|&nbsp;
-            Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
-            Converged: ${r.converged ? "✓ Yes" : "✗ No"}
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+            <div class="result-answer">Root &asymp; ${r.root}</div>
+            <div class="result-meta">
+              f(root) = ${r.f_root} &nbsp;|&nbsp;
+              Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
+              Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+            </div>
           </div>
+          ${steps.side}
         </div>
-        ${renderSteps(data.steps)}
+        ${steps.below}
         ${renderIterationsTable(data.iterations, [
           { key: "iter",  label: "Iter" },
           { key: "a",     label: "a" },
@@ -596,17 +822,21 @@ document.addEventListener("DOMContentLoaded", () => {
         ? sol.map((v, i) => `x${i + 1} = ${typeof v === "number" ? v.toFixed(6) : v}`).join(" &nbsp;|&nbsp; ")
         : JSON.stringify(sol);
 
+      const steps = renderSteps(data.steps);
       document.getElementById("results-gauss_seidel").innerHTML = `
-        <div class="result-panel">
-          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(sol))}')"><i class="fa-regular fa-copy"></i> Copy</button>
-          <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
-          <div class="result-answer">${solStr}</div>
-          <div class="result-meta">
-            Iterations: ${r.iterations_taken || "—"} &nbsp;|&nbsp;
-            Converged: ${r.converged !== undefined ? (r.converged ? "✓ Yes" : "✗ No") : "—"}
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(sol))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
+            <div class="result-answer">${solStr}</div>
+            <div class="result-meta">
+              Iterations: ${r.iterations_taken || "\u2014"} &nbsp;|&nbsp;
+              Converged: ${r.converged !== undefined ? (r.converged ? "\u2713 Yes" : "\u2717 No") : "\u2014"}
+            </div>
           </div>
+          ${steps.side}
         </div>
-        ${renderSteps(data.steps)}
+        ${steps.below}
         ${renderIterationsTable(data.iterations, [
           { key: "iter",  label: "Iter" },
           { key: "x_old", label: "x (prev)" },
@@ -646,17 +876,21 @@ document.addEventListener("DOMContentLoaded", () => {
       const r = data.result;
       const solStr = r.solution.map((v, i) => `x${i + 1} = ${v}`).join(" &nbsp;|&nbsp; ");
 
+      const steps = renderSteps(data.steps);
       document.getElementById("results-jacobi").innerHTML = `
-        <div class="result-panel">
-          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(r.solution))}')"><i class="fa-regular fa-copy"></i> Copy</button>
-          <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
-          <div class="result-answer">${solStr}</div>
-          <div class="result-meta">
-            Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
-            Converged: ${r.converged ? "✓ Yes" : "✗ No"}
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(r.solution))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
+            <div class="result-answer">${solStr}</div>
+            <div class="result-meta">
+              Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
+              Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+            </div>
           </div>
+          ${steps.side}
         </div>
-        ${renderSteps(data.steps)}
+        ${steps.below}
         ${renderIterationsTable(data.iterations, [
           { key: "iter",  label: "Iter" },
           { key: "x_old", label: "x (prev)" },
@@ -696,8 +930,8 @@ document.addEventListener("DOMContentLoaded", () => {
     setLoading(btn, true);
     try {
       const data = await callApi("/api/newton", {
-        func:     funcEl.value.trim(),
-        dfunc:    dfuncEl.value.trim(),
+        func:     normalizeFuncExpr(funcEl.value.trim()),
+        dfunc:    normalizeFuncExpr(dfuncEl.value.trim()),
         x0:       parseFloat(x0El.value),
         tol:      parseFloat(tolEl.value) || 1e-5,
         max_iter: parseInt(iterEl.value)  || 100,
@@ -705,13 +939,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!data.success) { renderError("results-newton", data.error); return; }
 
+      const steps = renderSteps(data.steps);
       document.getElementById("results-newton").innerHTML = `
-        <div class="result-panel">
-          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(data.result)}')"><i class="fa-regular fa-copy"></i> Copy</button>
-          <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-          <div class="result-answer">Root ≈ ${data.result}</div>
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(data.result)}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+            <div class="result-answer">Root &asymp; ${data.result}</div>
+          </div>
+          ${steps.side}
         </div>
-        ${renderSteps(data.steps)}
+        ${steps.below}
         ${renderIterationsTable(data.iterations, [
           { key: "iter",  label: "Iter" },
           { key: "x",     label: "x" },
@@ -753,13 +991,17 @@ document.addEventListener("DOMContentLoaded", () => {
         ? sol.map((v, i) => `x${i + 1} = ${typeof v === "number" ? v.toFixed(6) : v}`).join(" &nbsp;|&nbsp; ")
         : JSON.stringify(sol);
 
+      const steps = renderSteps(data.steps);
       document.getElementById("results-thomas").innerHTML = `
-        <div class="result-panel">
-          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(sol))}')"><i class="fa-regular fa-copy"></i> Copy</button>
-          <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
-          <div class="result-answer">${solStr}</div>
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(sol))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
+            <div class="result-answer">${solStr}</div>
+          </div>
+          ${steps.side}
         </div>
-        ${renderSteps(data.steps)}`;
+        ${steps.below}`;
     } catch (err) {
       renderError("results-thomas", "Network error: " + err.message);
     } finally {

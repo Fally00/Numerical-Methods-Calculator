@@ -14,14 +14,37 @@ def newton_raphson(params: dict) -> dict:
         tol       = float(params["tol"])
         max_iter  = int(params["max_iter"])
 
+        # Build a rich eval namespace with all common aliases
+        _ns = {
+            "x":      None,           # will be set per call
+            "math":   math,
+            # Standard math functions
+            **{k: getattr(math, k) for k in dir(math) if not k.startswith("_")},
+            # Common aliases users type
+            "ln":     math.log,       # ln(x) → natural log
+            "log10":  math.log10,
+            "log2":   math.log2,
+            "asin":   math.asin,  "arcsin": math.asin,
+            "acos":   math.acos,  "arccos": math.acos,
+            "atan":   math.atan,  "arctan": math.atan,
+            "tg":     math.tan,
+            "e":      math.e,
+            "pi":     math.pi,
+            "inf":    math.inf,
+        }
+
         def f(val):
-            return eval(func_str,  {"x": val, "math": math, **vars(math)})
+            _ns["x"] = val
+            return eval(func_str, _ns)
 
         def df(val):
-            return eval(dfunc_str, {"x": val, "math": math, **vars(math)})
+            _ns["x"] = val
+            return eval(dfunc_str, _ns)
+
 
         steps = []
         iterations = []
+        stag = 0
 
         for i in range(max_iter):
             fx  = f(x)
@@ -43,6 +66,20 @@ def newton_raphson(params: dict) -> dict:
 
             if error < tol:
                 steps.append(f"Converged after {i+1} iterations. Root ≈ {x:.6f}")
+                break
+
+            # Stagnation guard — x is no longer moving
+            if error < 1e-12:
+                stag += 1
+                if stag >= 2:
+                    steps.append(f"Stopped at iteration {i+1}: answer stagnated (|error| < 1e-12).")
+                    break
+            else:
+                stag = 0
+
+            # f(x) ≈ 0 guard
+            if abs(f(x)) < 1e-14:
+                steps.append(f"Stopped at iteration {i+1}: f(x) ≈ 0, root found exactly.")
                 break
         else:
             steps.append("Warning: did not converge within max iterations.")
