@@ -58,7 +58,7 @@ function renderSystemInput(containerId, hasX0 = false) {
       <div class="vector-bracket">
   `;
   for(let i=0; i<n; i++) {
-    html += `<input type="number" step="any" required class="matrix-cell" data-matrix="b" data-row="${i}" value="">`;
+    html += `<input type="number" id="b${i}" step="any" required class="matrix-cell1" data-matrix="b" data-row="${i}" value="">`;
   }
   html += `</div>`;
   
@@ -69,7 +69,7 @@ function renderSystemInput(containerId, hasX0 = false) {
       <div class="vector-bracket" style="margin-top: 10px;">
     `;
     for(let i=0; i<n; i++) {
-      html += `<input type="number" step="any" required class="matrix-cell" data-matrix="x0" data-row="${i}" value="0">`;
+      html += `<input type="number" id="xZero${i}" step="any" required class="matrix-cell1" data-matrix="x0" data-row="${i}" value="0">`;
     }
     html += `</div>`;
   }

@@ -723,6 +723,41 @@ body {
   pointer-events: none;
 }
 
+.matrix-cell1 {
+  width: 60px;
+  height: 36px;
+  background-color: var(--bg-canvas);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-xs);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  text-align: center;
+  outline: none;
+  transition: border-color var(--t), box-shadow var(--t);
+  padding: 0 6px;
+}
+
+.matrix-cell1:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+  z-index: 1;
+}
+
+.matrix-cell1.cell-diagonal {
+  background-color: var(--accent-muted);
+  border-color: var(--border-strong);
+}
+
+.matrix-cell1.cell-sub-diag  { background-color: rgba(0, 100, 60, 0.06); }
+.matrix-cell1.cell-super-diag{ background-color: rgba(139, 0, 74, 0.06); }
+.matrix-cell1.cell-disabled  {
+  background-color: transparent;
+  border-color: transparent;
+  cursor: default;
+  pointer-events: none;
+}
+
 /* ── Vector bracket (n×1) ── */
 
 .vector-bracket {
