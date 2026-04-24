@@ -1,26 +1,151 @@
 "use strict";
 
 // ═══════════════════════════════════════════════════════════════════
-//  HELPERS — Parsing
+//  STATE & RENDERERS FOR MATRIX INPUTS
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Parse a space/comma-separated string into an array of numbers.
- * e.g. "1 2 3" or "1,2,3" → [1, 2, 3]
- */
-function parseVector(str) {
-  return str.trim().split(/[\s,]+/).map(Number);
+const state = {
+  matrixSizes: {
+    'doolittle-matrix-container': 3,
+    'gauss_seidel-matrix-container': 3,
+    'jacobi-matrix-container': 3,
+    'thomas-matrix-container': 4
+  }
+};
+
+function renderSystemInput(containerId, hasX0 = false) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const n = state.matrixSizes[containerId];
+  
+  let html = `
+    <div class="matrix-size-control">
+      <span class="matrix-size-label">System Size (n)</span>
+      <div class="size-stepper">
+        <button type="button" class="size-btn size-minus" data-container="${containerId}">-</button>
+        <div class="size-display">${n}<span class="size-suffix">×${n}</span></div>
+        <button type="button" class="size-btn size-plus" data-container="${containerId}">+</button>
+      </div>
+    </div>
+    <div class="matrix-outer">
+      <div class="matrix-label-inline">A</div>
+      <div class="matrix-bracket">
+        <div class="matrix-col-headers" style="grid-template-columns: 14px repeat(${n}, 56px);">
+          <div style="width: 14px;"></div>
+  `;
+  for(let j=0; j<n; j++) {
+    html += `<div class="matrix-col-header">x${j+1}</div>`;
+  }
+  html += `</div><div class="matrix-grid">`;
+  
+  for(let i=0; i<n; i++) {
+    html += `<div class="matrix-row">
+      <div class="matrix-row-label">${i+1}</div>`;
+    for(let j=0; j<n; j++) {
+      let extraClass = "cell-sub-diag";
+      if (i<j) extraClass = "cell-super-diag";
+      if (i===j) extraClass = "cell-diagonal";
+      html += `<input type="number" step="any" required class="matrix-cell ${extraClass}" data-matrix="A" data-row="${i}" data-col="${j}" value="">`;
+    }
+    html += `</div>`;
+  }
+  
+  html += `
+        </div>
+      </div>
+      <div class="matrix-equals">=</div>
+      <div class="matrix-label-inline">b</div>
+      <div class="vector-bracket">
+  `;
+  for(let i=0; i<n; i++) {
+    html += `<input type="number" step="any" required class="matrix-cell" data-matrix="b" data-row="${i}" value="">`;
+  }
+  html += `</div>`;
+  
+  if (hasX0) {
+    html += `
+      <div style="width: 100%;"></div>
+      <div class="matrix-label-inline" style="margin-top: 10px;">x₀</div>
+      <div class="vector-bracket" style="margin-top: 10px;">
+    `;
+    for(let i=0; i<n; i++) {
+      html += `<input type="number" step="any" required class="matrix-cell" data-matrix="x0" data-row="${i}" value="0">`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</div>`; // .matrix-outer
+  
+  container.innerHTML = html;
 }
 
-/**
- * Parse a matrix encoded as "/ " row-separator string.
- * e.g. "2 -6 8 / 5 4 -3 / 3 1 2" → [[2,-6,8],[5,4,-3],[3,1,2]]
- */
-function parseMatrix(str) {
-  return str
-    .trim()
-    .split("/")
-    .map(rowStr => rowStr.trim().split(/\s+/).map(Number));
+function renderTridiagInput(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const n = state.matrixSizes[containerId];
+  
+  let html = `
+    <div class="matrix-size-control">
+      <span class="matrix-size-label">System Size (n)</span>
+      <div class="size-stepper">
+        <button type="button" class="size-btn size-minus" data-container="${containerId}">-</button>
+        <div class="size-display">${n}<span class="size-suffix">×${n}</span></div>
+        <button type="button" class="size-btn size-plus" data-container="${containerId}">+</button>
+      </div>
+    </div>
+    <div class="tridiag-wrapper">
+      <div class="tridiag-row">
+        <div class="tridiag-row-label">Upper c</div>
+        <div class="tridiag-cells">
+          <div class="tridiag-gap"><div class="tridiag-gap-dot"></div></div>
+  `;
+  for(let i=0; i<n-1; i++) {
+    html += `<input type="number" step="any" required class="matrix-cell cell-super-diag" data-matrix="c" data-row="${i}" value="">`;
+  }
+  html += `</div></div>
+      <div class="tridiag-row">
+        <div class="tridiag-row-label">Main b</div>
+        <div class="tridiag-cells">
+  `;
+  for(let i=0; i<n; i++) {
+    html += `<input type="number" step="any" required class="matrix-cell cell-diagonal" data-matrix="b" data-row="${i}" value="">`;
+  }
+  html += `</div></div>
+      <div class="tridiag-row">
+        <div class="tridiag-row-label">Lower a</div>
+        <div class="tridiag-cells">
+  `;
+  for(let i=0; i<n-1; i++) {
+    html += `<input type="number" step="any" required class="matrix-cell cell-sub-diag" data-matrix="a" data-row="${i}" value="">`;
+  }
+  html += `<div class="tridiag-gap"><div class="tridiag-gap-dot"></div></div>
+        </div></div>
+      <div class="tridiag-row" style="margin-top: 8px;">
+        <div class="tridiag-row-label">RHS d</div>
+        <div class="tridiag-cells">
+  `;
+  for(let i=0; i<n; i++) {
+    html += `<input type="number" step="any" required class="matrix-cell" data-matrix="d" data-row="${i}" value="">`;
+  }
+  html += `</div></div></div>`;
+  
+  container.innerHTML = html;
+}
+
+function getMatrixFromDOM(containerId, matrixName, rows, cols) {
+  const container = document.getElementById(containerId);
+  const matrix = [];
+  for (let i = 0; i < rows; i++) {
+    matrix[i] = [];
+    for (let j = 0; j < cols; j++) {
+      let q = `.matrix-cell[data-matrix="${matrixName}"][data-row="${i}"]`;
+      if (cols > 1) q += `[data-col="${j}"]`;
+      const el = container.querySelector(q);
+      matrix[i][j] = el ? (parseFloat(el.value) || 0) : 0;
+    }
+  }
+  if (cols === 1) return matrix.map(row => row[0]);
+  return matrix;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -31,8 +156,8 @@ function setLoading(btn, isLoading) {
   const textEl    = btn.querySelector(".btn-text");
   const spinnerEl = btn.querySelector(".btn-spinner");
   btn.disabled    = isLoading;
-  textEl.classList.toggle("hidden", isLoading);
-  spinnerEl.classList.toggle("hidden", !isLoading);
+  if(textEl) textEl.classList.toggle("hidden", isLoading);
+  if(spinnerEl) spinnerEl.classList.toggle("hidden", !isLoading);
 }
 
 function clearErrors(form) {
@@ -41,12 +166,12 @@ function clearErrors(form) {
 }
 
 function showFieldError(inputEl, errorEl, msg) {
-  inputEl.classList.add("input-error");
-  errorEl.textContent = msg;
+  if (inputEl) inputEl.classList.add("input-error");
+  if (errorEl) errorEl.textContent = msg;
 }
 
 function validateRequired(inputEl, errorEl, label) {
-  if (!inputEl.value.trim()) {
+  if (!inputEl || !inputEl.value.trim()) {
     showFieldError(inputEl, errorEl, `${label} is required.`);
     return false;
   }
@@ -55,6 +180,14 @@ function validateRequired(inputEl, errorEl, label) {
 
 function clearResults(containerId) {
   document.getElementById(containerId).innerHTML = "";
+}
+
+window.copyResultText = function(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const og = btn.innerHTML;
+    btn.innerHTML = `<i class="fa-solid fa-check"></i> Copied`;
+    setTimeout(() => { btn.innerHTML = og; }, 2000);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -71,10 +204,17 @@ function renderError(containerId, message) {
 
 function renderSteps(steps) {
   if (!steps || steps.length === 0) return "";
-  const lines = steps.map(s => `<div class="steps-line">${escHtml(s)}</div>`).join("");
+  const lines = steps.map(s => {
+    let cls = "steps-line";
+    const ls = s.toLowerCase();
+    if (ls.includes("converged")) cls += " step-conv";
+    else if (ls.includes("error") || ls.includes("fail") || ls.includes("warning")) cls += " step-warn";
+    else if (ls.startsWith("setup") || ls.includes("parsing") || ls.startsWith("[")) cls += " step-muted";
+    return `<div class="${cls}">${escHtml(s)}</div>`;
+  }).join("");
   return `
     <div class="steps-panel" id="steps-panel-inner">
-      <button class="steps-toggle" onclick="toggleSteps(this)">
+      <button type="button" class="steps-toggle" onclick="toggleSteps(this)">
         <span class="steps-toggle-label">
           <i class="fa-solid fa-list-ol"></i> Solution Steps (${steps.length})
         </span>
@@ -87,12 +227,33 @@ function renderSteps(steps) {
 function renderIterationsTable(iterations, columns) {
   if (!iterations || iterations.length === 0) return "";
   const headerCells = columns.map(c => `<th>${escHtml(c.label)}</th>`).join("");
+  
+  let maxErr = 0;
+  iterations.forEach(row => {
+    if (row.error !== undefined && row.error !== null) {
+      maxErr = Math.max(maxErr, parseFloat(row.error) || 0);
+    }
+  });
+
   const rows = iterations.map(row => {
     const cells = columns.map(c => {
       let val = row[c.key];
+      let tdCls = "";
+      
+      if (c.key === "error" && val !== undefined) {
+        let e = parseFloat(val);
+        if (!isNaN(e) && maxErr > 0) {
+          let ratio = e / maxErr;
+          if (ratio > 0.5) tdCls = ' class="cell-error-high"';
+          else if (ratio > 0.1) tdCls = ' class="cell-error-mid"';
+          else if (ratio > 0.001) tdCls = ' class="cell-error-low"';
+          else tdCls = ' class="cell-error-lowest"';
+        }
+      }
+      
       if (Array.isArray(val)) val = "[" + val.map(v => typeof v === "number" ? v.toFixed(6) : v).join(", ") + "]";
       else if (typeof val === "number") val = val.toFixed(6);
-      return `<td>${escHtml(String(val))}</td>`;
+      return `<td${tdCls}>${escHtml(String(val))}</td>`;
     }).join("");
     return `<tr>${cells}</tr>`;
   }).join("");
@@ -116,14 +277,10 @@ function escHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
-function toggleSteps(btn) {
+window.toggleSteps = function(btn) {
   const panel = btn.closest(".steps-panel");
   panel.classList.toggle("open");
 }
-
-// ═══════════════════════════════════════════════════════════════════
-//  API CALL WRAPPER
-// ═══════════════════════════════════════════════════════════════════
 
 async function callApi(endpoint, body) {
   const res = await fetch(endpoint, {
@@ -135,10 +292,34 @@ async function callApi(endpoint, body) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  SIDEBAR NAVIGATION
+//  APP INITIALIZATION & EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════════════
 
 document.addEventListener("DOMContentLoaded", () => {
+
+  // Initialize Grids
+  renderSystemInput('doolittle-matrix-container', false);
+  renderSystemInput('gauss_seidel-matrix-container', true);
+  renderSystemInput('jacobi-matrix-container', true);
+  renderTridiagInput('thomas-matrix-container');
+
+  // Sidebar Logic
+  const sidebarOverlay = document.getElementById("sidebar-overlay");
+  const sidebar = document.getElementById("sidebar");
+  const toggleBtn = document.getElementById("menu-toggle-btn");
+  
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      sidebar.classList.add("open");
+      sidebarOverlay.classList.add("show");
+    });
+  }
+  if (sidebarOverlay) {
+    sidebarOverlay.addEventListener("click", () => {
+      sidebar.classList.remove("open");
+      sidebarOverlay.classList.remove("show");
+    });
+  }
 
   const sidebarItems = document.querySelectorAll(".sidebar-item");
   const panels       = document.querySelectorAll(".method-panel");
@@ -146,15 +327,72 @@ document.addEventListener("DOMContentLoaded", () => {
   sidebarItems.forEach(item => {
     item.addEventListener("click", () => {
       const target = item.dataset.method;
-
       sidebarItems.forEach(i => i.classList.remove("active"));
       panels.forEach(p => p.classList.remove("active"));
-
       item.classList.add("active");
       const panel = document.getElementById(`panel-${target}`);
       if (panel) panel.classList.add("active");
+      
+      // Close mobile menu on select
+      if (window.innerWidth <= 768 && sidebar) {
+        sidebar.classList.remove("open");
+        sidebarOverlay.classList.remove("show");
+      }
     });
   });
+
+  // Size steppers
+  document.addEventListener("click", (e) => {
+    if (e.target.classList.contains("size-minus")) {
+      const cid = e.target.dataset.container;
+      if (state.matrixSizes[cid] > 2) {
+        state.matrixSizes[cid]--;
+        if (cid === 'thomas-matrix-container') renderTridiagInput(cid);
+        else renderSystemInput(cid, cid !== 'doolittle-matrix-container');
+      }
+    }
+    if (e.target.classList.contains("size-plus")) {
+      const cid = e.target.dataset.container;
+      if (state.matrixSizes[cid] < 8) {
+        state.matrixSizes[cid]++;
+        if (cid === 'thomas-matrix-container') renderTridiagInput(cid);
+        else renderSystemInput(cid, cid !== 'doolittle-matrix-container');
+      }
+    }
+  });
+
+  // Matrix cell navigation
+  document.addEventListener("keydown", (e) => {
+    if(!e.target.classList.contains('matrix-cell')) return;
+    const m = e.target.dataset.matrix;
+    const r = parseInt(e.target.dataset.row);
+    const c = parseInt(e.target.dataset.col);
+    
+    let newR = r;
+    let newC = c;
+    
+    if (e.key === "ArrowUp") newR--;
+    if (e.key === "ArrowDown") newR++;
+    if (e.key === "ArrowLeft" && e.target.selectionStart === 0 && !isNaN(c)) newC--;
+    if (e.key === "ArrowRight" && e.target.selectionEnd === e.target.value.length && !isNaN(c)) newC++;
+    
+    const container = e.target.closest('.matrix-outer, .tridiag-wrapper');
+    if (!container) return;
+
+    if (newR !== r || newC !== c) {
+      let nextCell;
+      if (!isNaN(c)) {
+        nextCell = container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${newR}"][data-col="${newC}"]`);
+      } else {
+        nextCell = container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${newR}"]`);
+      }
+      if (nextCell) {
+        e.preventDefault();
+        nextCell.focus();
+      }
+    }
+  });
+
 
   // ─────────────────────────────────────────────────────────────────
   //  1. BISECTION
@@ -194,6 +432,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const r = data.result;
       document.getElementById("results-bisection").innerHTML = `
         <div class="result-panel">
+          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
           <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
           <div class="result-answer">Root ≈ ${r.root}</div>
           <div class="result-meta">
@@ -207,9 +446,9 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "iter",  label: "Iter" },
           { key: "a",     label: "a" },
           { key: "b",     label: "b" },
-          { key: "x",     label: "Midpoint c" },
+          { key: "x",     label: "Mid c" },
           { key: "f_x",   label: "f(c)" },
-          { key: "error", label: "|Error|" },
+          { key: "error", label: "|Err|" },
         ])}`;
     } catch (err) {
       renderError("results-bisection", "Network error: " + err.message);
@@ -224,24 +463,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("form-doolittle").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const form = e.target;
-    clearErrors(form);
+    const btn = document.getElementById("btn-doolittle");
     clearResults("results-doolittle");
 
-    const AEl  = document.getElementById("doolittle-A");
-    const bEl  = document.getElementById("doolittle-b");
-    const btn  = document.getElementById("btn-doolittle");
-
-    let valid = true;
-    if (!validateRequired(AEl, document.getElementById("err-doolittle-A"), "Matrix A")) valid = false;
-    if (!validateRequired(bEl, document.getElementById("err-doolittle-b"), "Vector b")) valid = false;
-    if (!valid) return;
+    const cid = 'doolittle-matrix-container';
+    const n = state.matrixSizes[cid];
+    const A = getMatrixFromDOM(cid, 'A', n, n);
+    const b = getMatrixFromDOM(cid, 'b', n, 1);
 
     setLoading(btn, true);
     try {
-      const A = parseMatrix(AEl.value);
-      const b = parseVector(bEl.value);
-
       const data = await callApi("/api/doolittle", { A, b });
 
       if (!data.success) { renderError("results-doolittle", data.error); return; }
@@ -255,6 +486,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.getElementById("results-doolittle").innerHTML = `
         <div class="result-panel">
+          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(r.X))}')"><i class="fa-regular fa-copy"></i> Copy</button>
           <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
           <div class="result-answer">${xStr}</div>
           <div class="result-matrix-label">L matrix</div>
@@ -310,6 +542,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const r = data.result;
       document.getElementById("results-false_position").innerHTML = `
         <div class="result-panel">
+          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
           <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
           <div class="result-answer">Root ≈ ${r.root}</div>
           <div class="result-meta">
@@ -325,7 +558,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "b",     label: "b" },
           { key: "x",     label: "xs" },
           { key: "f_x",   label: "f(xs)" },
-          { key: "error", label: "|Error|" },
+          { key: "error", label: "|Err|" },
         ])}`;
     } catch (err) {
       renderError("results-false_position", "Network error: " + err.message);
@@ -340,32 +573,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("form-gauss_seidel").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const form = e.target;
-    clearErrors(form);
+    const btn = document.getElementById("btn-gauss_seidel");
     clearResults("results-gauss_seidel");
 
-    const AEl    = document.getElementById("gs-A");
-    const bEl    = document.getElementById("gs-b");
-    const x0El   = document.getElementById("gs-x0");
-    const tolEl  = document.getElementById("gs-tol");
-    const iterEl = document.getElementById("gs-iter");
-    const btn    = document.getElementById("btn-gauss_seidel");
-
-    let valid = true;
-    if (!validateRequired(AEl,  document.getElementById("err-gs-A"),  "Matrix A")) valid = false;
-    if (!validateRequired(bEl,  document.getElementById("err-gs-b"),  "Vector b")) valid = false;
-    if (!validateRequired(x0El, document.getElementById("err-gs-x0"), "Initial guess x₀")) valid = false;
-    if (!valid) return;
+    const cid = 'gauss_seidel-matrix-container';
+    const n = state.matrixSizes[cid];
+    const A = getMatrixFromDOM(cid, 'A', n, n);
+    const b = getMatrixFromDOM(cid, 'b', n, 1);
+    const x0 = getMatrixFromDOM(cid, 'x0', n, 1);
+    const tol = parseFloat(document.getElementById("gs-tol").value) || 0.001;
+    const max_iter = parseInt(document.getElementById("gs-iter").value) || 100;
 
     setLoading(btn, true);
     try {
-      const data = await callApi("/api/gauss_seidel", {
-        A:         parseMatrix(AEl.value),
-        b:         parseVector(bEl.value),
-        x0:        parseVector(x0El.value),
-        tolerance: parseFloat(tolEl.value) || 0.001,
-        max_iter:  parseInt(iterEl.value)  || 100,
-      });
+      const data = await callApi("/api/gauss_seidel", { A, b, x0, tolerance: tol, max_iter });
 
       if (!data.success) { renderError("results-gauss_seidel", data.error); return; }
 
@@ -377,6 +598,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.getElementById("results-gauss_seidel").innerHTML = `
         <div class="result-panel">
+          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(sol))}')"><i class="fa-regular fa-copy"></i> Copy</button>
           <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
           <div class="result-answer">${solStr}</div>
           <div class="result-meta">
@@ -389,7 +611,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "iter",  label: "Iter" },
           { key: "x_old", label: "x (prev)" },
           { key: "x_new", label: "x (new)" },
-          { key: "error", label: "|Error|" },
+          { key: "error", label: "|Err|" },
         ])}`;
     } catch (err) {
       renderError("results-gauss_seidel", "Network error: " + err.message);
@@ -404,32 +626,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("form-jacobi").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const form = e.target;
-    clearErrors(form);
+    const btn = document.getElementById("btn-jacobi");
     clearResults("results-jacobi");
 
-    const AEl    = document.getElementById("jacobi-A");
-    const bEl    = document.getElementById("jacobi-b");
-    const x0El   = document.getElementById("jacobi-x0");
-    const tolEl  = document.getElementById("jacobi-tol");
-    const iterEl = document.getElementById("jacobi-iter");
-    const btn    = document.getElementById("btn-jacobi");
-
-    let valid = true;
-    if (!validateRequired(AEl,  document.getElementById("err-jacobi-A"),  "Matrix A")) valid = false;
-    if (!validateRequired(bEl,  document.getElementById("err-jacobi-b"),  "Vector b")) valid = false;
-    if (!validateRequired(x0El, document.getElementById("err-jacobi-x0"), "Initial guess x₀")) valid = false;
-    if (!valid) return;
+    const cid = 'jacobi-matrix-container';
+    const n = state.matrixSizes[cid];
+    const A = getMatrixFromDOM(cid, 'A', n, n);
+    const b = getMatrixFromDOM(cid, 'b', n, 1);
+    const x0 = getMatrixFromDOM(cid, 'x0', n, 1);
+    const tol = parseFloat(document.getElementById("jacobi-tol").value) || 0.001;
+    const max_iter = parseInt(document.getElementById("jacobi-iter").value) || 100;
 
     setLoading(btn, true);
     try {
-      const data = await callApi("/api/jacobi", {
-        A:         parseMatrix(AEl.value),
-        b:         parseVector(bEl.value),
-        x0:        parseVector(x0El.value),
-        tolerance: parseFloat(tolEl.value) || 0.001,
-        max_iter:  parseInt(iterEl.value)  || 100,
-      });
+      const data = await callApi("/api/jacobi", { A, b, x0, tolerance: tol, max_iter });
 
       if (!data.success) { renderError("results-jacobi", data.error); return; }
 
@@ -438,6 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.getElementById("results-jacobi").innerHTML = `
         <div class="result-panel">
+          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(r.solution))}')"><i class="fa-regular fa-copy"></i> Copy</button>
           <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
           <div class="result-answer">${solStr}</div>
           <div class="result-meta">
@@ -450,7 +661,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "iter",  label: "Iter" },
           { key: "x_old", label: "x (prev)" },
           { key: "x_new", label: "x (new)" },
-          { key: "error", label: "|Error|" },
+          { key: "error", label: "|Err|" },
         ])}`;
     } catch (err) {
       renderError("results-jacobi", "Network error: " + err.message);
@@ -496,6 +707,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.getElementById("results-newton").innerHTML = `
         <div class="result-panel">
+          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(data.result)}')"><i class="fa-regular fa-copy"></i> Copy</button>
           <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
           <div class="result-answer">Root ≈ ${data.result}</div>
         </div>
@@ -504,7 +716,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "iter",  label: "Iter" },
           { key: "x",     label: "x" },
           { key: "fx",    label: "f(x)" },
-          { key: "error", label: "|Error|" },
+          { key: "error", label: "|Err|" },
         ])}`;
     } catch (err) {
       renderError("results-newton", "Network error: " + err.message);
@@ -519,31 +731,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("form-thomas").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const form = e.target;
-    clearErrors(form);
+    const btn = document.getElementById("btn-thomas");
     clearResults("results-thomas");
 
-    const aEl = document.getElementById("thomas-a");
-    const bEl = document.getElementById("thomas-b");
-    const cEl = document.getElementById("thomas-c");
-    const dEl = document.getElementById("thomas-d");
-    const btn = document.getElementById("btn-thomas");
-
-    let valid = true;
-    if (!validateRequired(aEl, document.getElementById("err-thomas-a"), "Lower diagonal a")) valid = false;
-    if (!validateRequired(bEl, document.getElementById("err-thomas-b"), "Main diagonal b")) valid = false;
-    if (!validateRequired(cEl, document.getElementById("err-thomas-c"), "Upper diagonal c")) valid = false;
-    if (!validateRequired(dEl, document.getElementById("err-thomas-d"), "RHS vector d")) valid = false;
-    if (!valid) return;
+    const cid = 'thomas-matrix-container';
+    const n = state.matrixSizes[cid];
+    const a = getMatrixFromDOM(cid, 'a', n-1, 1);
+    const b = getMatrixFromDOM(cid, 'b', n, 1);
+    const c = getMatrixFromDOM(cid, 'c', n-1, 1);
+    const d = getMatrixFromDOM(cid, 'd', n, 1);
 
     setLoading(btn, true);
     try {
-      const data = await callApi("/api/thomas", {
-        a: parseVector(aEl.value),
-        b: parseVector(bEl.value),
-        c: parseVector(cEl.value),
-        d: parseVector(dEl.value),
-      });
+      const data = await callApi("/api/thomas", { a, b, c, d });
 
       if (!data.success) { renderError("results-thomas", data.error); return; }
 
@@ -555,6 +755,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.getElementById("results-thomas").innerHTML = `
         <div class="result-panel">
+          <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(JSON.stringify(sol))}')"><i class="fa-regular fa-copy"></i> Copy</button>
           <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Solution</div>
           <div class="result-answer">${solStr}</div>
         </div>
