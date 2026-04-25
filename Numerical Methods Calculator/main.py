@@ -1,14 +1,16 @@
-from flask import Flask, jsonify, render_template
+from flask                    import Flask, jsonify, render_template
+
+from methods.Secant           import bp as secant_bp
 from methods.jacobi           import bp as jacobi_bp
 from methods.false_position   import bp as fp_bp
 from methods.bisection        import bp as bisect_bp
 from methods.doolittle        import bp as doolittle_bp
 from methods.gauss_sidal      import bp as gauss_seidel_bp
 from methods.Newton           import bp as newton_bp
+from methods.Newton_Backward  import bp as newton_backward_bp
+from methods.Newton_Forward   import bp as newton_forward_bp
 from methods.Thomas_Algorithm import bp as thomas_algorithm_bp
-from methods.Secant import bp as secant_bp  
-from methods.Newton_Backward import bp as newton_backward_bp
-from methods.Newton_Forward import bp as newton_forward_bp
+
 
 app = Flask(__name__)
 

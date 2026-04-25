@@ -58,7 +58,7 @@ function renderSystemInput(containerId, hasX0 = false) {
       <div class="vector-bracket">
   `;
   for(let i=0; i<n; i++) {
-    html += `<input type="number" id="b${i}" step="any" required class="matrix-cell1" data-matrix="b" data-row="${i}" value="">`;
+    html += `<input type="number" id="b${i}" step="any" required class="matrix-cell" data-matrix="b" data-row="${i}" value="">`;
   }
   html += `</div>`;
   
@@ -69,7 +69,7 @@ function renderSystemInput(containerId, hasX0 = false) {
       <div class="vector-bracket" style="margin-top: 10px;">
     `;
     for(let i=0; i<n; i++) {
-      html += `<input type="number" id="xZero${i}" step="any" required class="matrix-cell1" data-matrix="x0" data-row="${i}" value="0">`;
+      html += `<input type="number" id="xZero${i}" step="any" required class="matrix-cell" data-matrix="x0" data-row="${i}" value="0">`;
     }
     html += `</div>`;
   }
@@ -84,7 +84,6 @@ function renderTridiagInput(containerId) {
   if (!container) return;
   const n = state.matrixSizes[containerId];
 
-  // Column-per-variable layout — rows: c (upper), b (main), a (lower), | d (RHS)
   let html = `
     <div class="matrix-size-control">
       <span class="matrix-size-label">System Size (n)</span>
@@ -94,57 +93,46 @@ function renderTridiagInput(containerId) {
         <button type="button" class="size-btn size-plus" data-container="${containerId}">+</button>
       </div>
     </div>
-    <div class="tridiag-table-wrap">
-      <table class="tridiag-table">
-        <thead>
-          <tr>
-            <th class="tridiag-row-header"></th>`;
-
-  for (let col = 0; col < n; col++) {
-    html += `<th class="tridiag-col-header">x${col + 1}</th>`;
+    <div class="matrix-outer">
+      <div class="matrix-label-inline">A</div>
+      <div class="matrix-bracket">
+        <div class="matrix-col-headers" style="grid-template-columns: 14px repeat(${n}, 56px);">
+          <div style="width: 14px;"></div>
+  `;
+  for(let j=0; j<n; j++) {
+    html += `<div class="matrix-col-header">x${j+1}</div>`;
   }
-  html += `</tr></thead><tbody>`;
-
-  // Row c: super-diagonal — exists at col 0..n-2 (c[i] couples x[i] and x[i+1])
-  html += `<tr><td class="tridiag-row-header"><span class="tridiag-diag-label tridiag-super">c</span><span class="tridiag-diag-sub">upper</span></td>`;
-  for (let col = 0; col < n; col++) {
-    if (col < n - 1) {
-      html += `<td><input type="number" step="any" class="matrix-cell cell-super-diag tridiag-cell" data-matrix="c" data-row="${col}" data-col="0" data-trow="0" data-tcol="${col}" value=""></td>`;
-    } else {
-      html += `<td><div class="tridiag-cell-blank"></div></td>`;
+  html += `</div><div class="matrix-grid">`;
+  
+  for(let i=0; i<n; i++) {
+    html += `<div class="matrix-row">
+      <div class="matrix-row-label">${i+1}</div>`;
+    for(let j=0; j<n; j++) {
+      if (i === j) {
+        html += `<input type="number" step="any" required class="matrix-cell cell-diagonal" data-matrix="b" data-row="${i}" value="">`;
+      } else if (i === j + 1) { // lower diagonal (a)
+        html += `<input type="number" step="any" required class="matrix-cell cell-sub-diag" data-matrix="a" data-row="${j}" value="">`;
+      } else if (i === j - 1) { // upper diagonal (c)
+        html += `<input type="number" step="any" required class="matrix-cell cell-super-diag" data-matrix="c" data-row="${i}" value="">`;
+      } else {
+        html += `<input type="number" class="matrix-cell cell-disabled" disabled value="0">`;
+      }
     }
+    html += `</div>`;
   }
-  html += `</tr>`;
-
-  // Row b: main diagonal — all n columns
-  html += `<tr><td class="tridiag-row-header"><span class="tridiag-diag-label tridiag-main">b</span><span class="tridiag-diag-sub">main</span></td>`;
-  for (let col = 0; col < n; col++) {
-    html += `<td><input type="number" step="any" class="matrix-cell cell-diagonal tridiag-cell" data-matrix="b" data-row="${col}" data-col="0" data-trow="1" data-tcol="${col}" value=""></td>`;
+  
+  html += `
+        </div>
+      </div>
+      <div class="matrix-equals">=</div>
+      <div class="matrix-label-inline">d</div>
+      <div class="vector-bracket">
+  `;
+  for(let i=0; i<n; i++) {
+    html += `<input type="number" id="d${i}" step="any" required class="matrix-cell" data-matrix="d" data-row="${i}" value="">`;
   }
-  html += `</tr>`;
-
-  // Row a: sub-diagonal — blank at col 0, exists at col 1..n-1
-  html += `<tr><td class="tridiag-row-header"><span class="tridiag-diag-label tridiag-sub">a</span><span class="tridiag-diag-sub">lower</span></td>`;
-  for (let col = 0; col < n; col++) {
-    if (col > 0) {
-      html += `<td><input type="number" step="any" class="matrix-cell cell-sub-diag tridiag-cell" data-matrix="a" data-row="${col - 1}" data-col="0" data-trow="2" data-tcol="${col}" value=""></td>`;
-    } else {
-      html += `<td><div class="tridiag-cell-blank"></div></td>`;
-    }
-  }
-  html += `</tr>`;
-
-  // Separator
-  html += `<tr class="tridiag-separator"><td colspan="${n + 1}"></td></tr>`;
-
-  // Row d: RHS — all n columns
-  html += `<tr><td class="tridiag-row-header"><span class="tridiag-diag-label tridiag-rhs">d</span><span class="tridiag-diag-sub">rhs</span></td>`;
-  for (let col = 0; col < n; col++) {
-    html += `<td><input type="number" step="any" class="matrix-cell tridiag-cell" data-matrix="d" data-row="${col}" data-col="0" data-trow="3" data-tcol="${col}" value=""></td>`;
-  }
-  html += `</tr>`;
-
-  html += `</tbody></table></div>`;
+  html += `</div></div>`;
+  
   container.innerHTML = html;
 }
 
@@ -154,7 +142,7 @@ function getMatrixFromDOM(containerId, matrixName, rows, cols) {
   for (let i = 0; i < rows; i++) {
     matrix[i] = [];
     for (let j = 0; j < cols; j++) {
-      let q = `.matrix-cell[data-matrix="${matrixName}"][data-row="${i}"]`;
+      let q = `[data-matrix="${matrixName}"][data-row="${i}"]`;
       if (cols > 1) q += `[data-col="${j}"]`;
       const el = container.querySelector(q);
       matrix[i][j] = el ? (parseFloat(el.value) || 0) : 0;
@@ -670,7 +658,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e.key === 'ArrowLeft'  && cell.selectionStart === 0 && !isNaN(c)) newC--;
       if (e.key === 'ArrowRight' && cell.selectionEnd === cell.value.length && !isNaN(c)) newC++;
 
-      if (newR !== r || newC !== c) {
+      if (newR !== r || (!isNaN(c) && newC !== c)) {
         let nextCell = !isNaN(c)
           ? container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${newR}"][data-col="${newC}"]`)
           : container.querySelector(`.matrix-cell[data-matrix="${m}"][data-row="${newR}"]`);

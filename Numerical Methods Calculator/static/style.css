@@ -723,40 +723,7 @@ body {
   pointer-events: none;
 }
 
-.matrix-cell1 {
-  width: 60px;
-  height: 36px;
-  background-color: var(--bg-canvas);
-  border: 1.5px solid var(--border);
-  border-radius: var(--r-xs);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  text-align: center;
-  outline: none;
-  transition: border-color var(--t), box-shadow var(--t);
-  padding: 0 6px;
-}
 
-.matrix-cell1:focus {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-focus);
-  z-index: 1;
-}
-
-.matrix-cell1.cell-diagonal {
-  background-color: var(--accent-muted);
-  border-color: var(--border-strong);
-}
-
-.matrix-cell1.cell-sub-diag  { background-color: rgba(0, 100, 60, 0.06); }
-.matrix-cell1.cell-super-diag{ background-color: rgba(139, 0, 74, 0.06); }
-.matrix-cell1.cell-disabled  {
-  background-color: transparent;
-  border-color: transparent;
-  cursor: default;
-  pointer-events: none;
-}
 
 /* ── Vector bracket (n×1) ── */
 
@@ -800,81 +767,6 @@ body {
   align-self: center;
 }
 
-/* ===================================================================
-   TRIDIAGONAL COMPONENT — Table Layout (Thomas Algorithm)
-=================================================================== */
-
-.tridiag-table-wrap {
-  overflow-x: auto;
-  margin-top: 4px;
-}
-
-.tridiag-table {
-  border-collapse: separate;
-  border-spacing: 8px 6px;
-}
-
-.tridiag-row-header {
-  padding-right: 6px;
-  text-align: right;
-  vertical-align: middle;
-  white-space: nowrap;
-  min-width: 68px;
-}
-
-.tridiag-col-header {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  color: var(--accent);
-  text-align: center;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  opacity: 0.8;
-  padding-bottom: 2px;
-}
-
-.tridiag-diag-label {
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 700;
-  display: inline-block;
-  margin-right: 4px;
-}
-
-.tridiag-super { color: var(--accent); }
-.tridiag-main  { color: var(--text-primary); }
-.tridiag-sub   { color: var(--text-secondary); }
-.tridiag-rhs   { color: var(--step-converge); }
-
-.tridiag-diag-sub {
-  font-family: var(--font-display);
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  vertical-align: middle;
-}
-
-.tridiag-cell-blank {
-  width: 60px;
-  height: 36px;
-  border-radius: var(--r-xs);
-  background: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 4px,
-    rgba(0,0,0,0.04) 4px,
-    rgba(0,0,0,0.04) 8px
-  );
-  border: 1.5px dashed var(--border);
-}
-
-.tridiag-separator td {
-  height: 6px;
-  border-top: 1px solid var(--border);
-  padding: 0;
-}
 
 /* ===================================================================
    SUBMIT BUTTON
