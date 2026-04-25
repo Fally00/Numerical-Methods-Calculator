@@ -6,7 +6,7 @@
     <title>Numerical Methods Calculator</title>
     <meta
       name="description"
-      content="An interactive calculator for numerical methods including Bisection, Doolittle LU, Jacobi, Gauss-Seidel, Newton, False Position, and Thomas Algorithm."
+      content="An interactive calculator for numerical methods including Bisection, False Position, Newton-Raphson, Secant, Doolittle LU, Jacobi, Gauss-Seidel, Thomas Algorithm, Newton Forward, and Newton Backward."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -135,6 +135,13 @@
                 <span class="sidebar-item-label">Newton-Raphson</span>
                 <span class="sidebar-item-badge">iter</span>
               </li>
+              <li class="sidebar-item" data-method="secant">
+                <div class="sidebar-item-icon-wrap">
+                  <i class="fa-solid fa-slash sidebar-item-icon"></i>
+                </div>
+                <span class="sidebar-item-label">Secant</span>
+                <span class="sidebar-item-badge">iter</span>
+              </li>
             </ul>
           </div>
 
@@ -173,12 +180,32 @@
             </ul>
           </div>
 
+          <div class="sidebar-group">
+            <p class="sidebar-section-label">Interpolation</p>
+            <ul class="sidebar-list" id="sidebar-list-interpolation">
+              <li class="sidebar-item" data-method="newton_forward">
+                <div class="sidebar-item-icon-wrap">
+                  <i class="fa-solid fa-arrow-right sidebar-item-icon"></i>
+                </div>
+                <span class="sidebar-item-label">Newton Forward</span>
+                <span class="sidebar-item-badge">interp</span>
+              </li>
+              <li class="sidebar-item" data-method="newton_backward">
+                <div class="sidebar-item-icon-wrap">
+                  <i class="fa-solid fa-arrow-left sidebar-item-icon"></i>
+                </div>
+                <span class="sidebar-item-label">Newton Backward</span>
+                <span class="sidebar-item-badge">interp</span>
+              </li>
+            </ul>
+          </div>
+
         </nav>
 
         <div class="sidebar-footer">
           <div class="sidebar-footer-dot"></div>
           <span class="sidebar-footer-text">Ready</span>
-          <span class="sidebar-footer-count" id="method-count-display">7 methods</span>
+          <span class="sidebar-footer-count" id="method-count-display">10 methods</span>
         </div>
       </aside>
 
@@ -519,6 +546,63 @@
           <div class="results-area" id="results-newton"></div>
         </section>
 
+        <section class="method-panel" id="panel-secant">
+          <div class="panel-header">
+            <h1 class="panel-title">
+              <i class="fa-solid fa-slash"></i> Secant Method
+            </h1>
+            <p class="panel-subtitle">
+              Approximate a root using two starting guesses and repeated secant
+              line updates without evaluating the derivative explicitly.
+            </p>
+          </div>
+          <form class="method-form" id="form-secant" novalidate>
+            <div class="form-grid">
+              <div class="form-group form-group-wide">
+                <label class="form-label" for="secant-func">Function f(x)</label>
+                <div class="func-input-wrapper" id="secant-func-wrapper">
+                  <input class="form-input" type="text" id="secant-func" placeholder="e.g. x^3 - 8*x - 5" autocomplete="off" />
+                  <div class="func-preview-bar">
+                    <span class="func-preview-tag">f(x) =</span>
+                    <span class="func-preview-text preview-empty" id="secant-func-preview">type a function...</span>
+                  </div>
+                </div>
+                <div class="func-hint-row">
+                  <span class="func-hint-chip" data-insert="x^3 - 8*x - 5" data-target="secant-func">x^3-8x-5</span>
+                  <span class="func-hint-chip" data-insert="exp(x) - 3*x" data-target="secant-func">exp(x)-3x</span>
+                  <span class="func-hint-chip" data-insert="cos(x) - x" data-target="secant-func">cos(x)-x</span>
+                </div>
+                <span class="form-error" id="err-secant-func"></span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="secant-x0">First guess x0</label>
+                <input class="form-input" type="number" step="any" id="secant-x0" placeholder="e.g. 3" />
+                <span class="form-error" id="err-secant-x0"></span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="secant-x1">Second guess x1</label>
+                <input class="form-input" type="number" step="any" id="secant-x1" placeholder="e.g. 3.5" />
+                <span class="form-error" id="err-secant-x1"></span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="secant-tol">Tolerance</label>
+                <input class="form-input" type="number" step="any" id="secant-tol" placeholder="e.g. 0.00001" value="0.00001" />
+                <span class="form-error" id="err-secant-tol"></span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="secant-iter">Max Iterations</label>
+                <input class="form-input" type="number" id="secant-iter" placeholder="e.g. 100" value="100" />
+                <span class="form-error" id="err-secant-iter"></span>
+              </div>
+            </div>
+            <button class="btn-submit" type="submit" id="btn-secant">
+              <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+              <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving...</span>
+            </button>
+          </form>
+          <div class="results-area" id="results-secant"></div>
+        </section>
+
         <!-- ── THOMAS ALGORITHM ── -->
         <section class="method-panel" id="panel-thomas">
           <div class="panel-header">
@@ -549,6 +633,78 @@
             </button>
           </form>
           <div class="results-area" id="results-thomas"></div>
+        </section>
+
+        <section class="method-panel" id="panel-newton_forward">
+          <div class="panel-header">
+            <h1 class="panel-title">
+              <i class="fa-solid fa-arrow-right"></i> Newton Forward Interpolation
+            </h1>
+            <p class="panel-subtitle">
+              Interpolate a value near the beginning of an equally spaced data
+              table using forward differences.
+            </p>
+          </div>
+          <form class="method-form" id="form-newton_forward" novalidate>
+            <div class="form-grid">
+              <div class="form-group form-group-wide">
+                <label class="form-label" for="nf-x-values">x values</label>
+                <textarea class="form-textarea" id="nf-x-values" rows="3" placeholder="e.g. 0, 0.1, 0.2, 0.3, 0.4"></textarea>
+                <span class="form-error" id="err-nf-x-values"></span>
+              </div>
+              <div class="form-group form-group-wide">
+                <label class="form-label" for="nf-y-values">y values</label>
+                <textarea class="form-textarea" id="nf-y-values" rows="3" placeholder="e.g. 1, 1.3499, 1.8221, 2.4596, 3.3201"></textarea>
+                <span class="form-error" id="err-nf-y-values"></span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="nf-x-query">Interpolate at x</label>
+                <input class="form-input" type="number" step="any" id="nf-x-query" placeholder="e.g. 0.05" />
+                <span class="form-error" id="err-nf-x-query"></span>
+              </div>
+            </div>
+            <button class="btn-submit" type="submit" id="btn-newton_forward">
+              <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+              <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving...</span>
+            </button>
+          </form>
+          <div class="results-area" id="results-newton_forward"></div>
+        </section>
+
+        <section class="method-panel" id="panel-newton_backward">
+          <div class="panel-header">
+            <h1 class="panel-title">
+              <i class="fa-solid fa-arrow-left"></i> Newton Backward Interpolation
+            </h1>
+            <p class="panel-subtitle">
+              Interpolate a value near the end of an equally spaced data table
+              using backward differences.
+            </p>
+          </div>
+          <form class="method-form" id="form-newton_backward" novalidate>
+            <div class="form-grid">
+              <div class="form-group form-group-wide">
+                <label class="form-label" for="nb-x-values">x values</label>
+                <textarea class="form-textarea" id="nb-x-values" rows="3" placeholder="e.g. 40, 50, 60, 70, 80, 90"></textarea>
+                <span class="form-error" id="err-nb-x-values"></span>
+              </div>
+              <div class="form-group form-group-wide">
+                <label class="form-label" for="nb-y-values">y values</label>
+                <textarea class="form-textarea" id="nb-y-values" rows="3" placeholder="e.g. 204, 224, 246, 270, 296, 324"></textarea>
+                <span class="form-error" id="err-nb-y-values"></span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="nb-x-query">Interpolate at x</label>
+                <input class="form-input" type="number" step="any" id="nb-x-query" placeholder="e.g. 84" />
+                <span class="form-error" id="err-nb-x-query"></span>
+              </div>
+            </div>
+            <button class="btn-submit" type="submit" id="btn-newton_backward">
+              <span class="btn-text"><i class="fa-solid fa-play"></i> Solve</span>
+              <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Solving...</span>
+            </button>
+          </form>
+          <div class="results-area" id="results-newton_backward"></div>
         </section>
         </div><!-- /.content-inner -->
       </main>

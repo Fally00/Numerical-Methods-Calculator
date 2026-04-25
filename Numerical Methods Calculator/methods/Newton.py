@@ -94,15 +94,6 @@ def newton_raphson(params: dict) -> dict:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-
-# ── Flask Blueprint ─────────────────────────────────────────────────────────────
-
-@bp.route("/api/newton", methods=["POST"])
-def handle_newton():
-    params = request.get_json(force=True, silent=True) or {}
-    return jsonify(newton_raphson(params))
-
-
 # ---------- quick local test ----------
 if __name__ == "__main__":
     result = newton_raphson({
@@ -115,3 +106,13 @@ if __name__ == "__main__":
     print("Result:", result["result"])
     for s in result["steps"]:
         print(s)
+
+        
+# ── Flask Blueprint ─────────────────────────────────────────────────────────────
+
+@bp.route("/api/newton", methods=["POST"])
+def handle_newton():
+    params = request.get_json(force=True, silent=True) or {}
+    return jsonify(newton_raphson(params))
+
+

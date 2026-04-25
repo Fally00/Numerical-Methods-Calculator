@@ -198,6 +198,25 @@ function clearResults(containerId) {
   document.getElementById(containerId).innerHTML = "";
 }
 
+function parseNumberSequence(raw, label) {
+  const tokens = String(raw)
+    .split(/[\s,]+/)
+    .map(token => token.trim())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    throw new Error(`${label} is required.`);
+  }
+
+  return tokens.map(token => {
+    const value = Number(token);
+    if (!Number.isFinite(value)) {
+      throw new Error(`${label} must contain only numeric values.`);
+    }
+    return value;
+  });
+}
+
 window.copyResultText = function(btn, text) {
   navigator.clipboard.writeText(text).then(() => {
     const og = btn.innerHTML;
@@ -280,6 +299,54 @@ function renderIterationsTable(iterations, columns) {
       <div class="iterations-table-wrap">
         <table class="iterations-table">
           <thead><tr>${headerCells}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function formatDisplayNumber(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return String(value ?? "");
+  }
+
+  const absValue = Math.abs(value);
+  if (absValue > 0 && absValue < 1e-4) {
+    return value.toExponential(4);
+  }
+  return String(Number(value.toFixed(6)));
+}
+
+function renderDifferenceTable(title, xValues, table, mode) {
+  if (!xValues || !table || table.length === 0) return "";
+
+  const orderCount = table[0].length - 1;
+  const headers = [
+    "<th>x</th>",
+    "<th>y</th>",
+    ...Array.from({ length: orderCount }, (_, idx) => `<th>Diff ${idx + 1}</th>`)
+  ].join("");
+
+  const rows = table.map((row, rowIndex) => {
+    const cells = [`<td>${escHtml(formatDisplayNumber(xValues[rowIndex]))}</td>`];
+
+    for (let col = 0; col < row.length; col++) {
+      const isVisible = mode === "backward"
+        ? rowIndex >= col
+        : rowIndex < xValues.length - col;
+      const value = isVisible ? formatDisplayNumber(row[col]) : "";
+      cells.push(`<td>${escHtml(value)}</td>`);
+    }
+
+    return `<tr>${cells.join("")}</tr>`;
+  }).join("");
+
+  return `
+    <div class="iterations-panel">
+      <div class="iterations-panel-title"><i class="fa-solid fa-table"></i> ${escHtml(title)}</div>
+      <div class="iterations-table-wrap">
+        <table class="iterations-table">
+          <thead><tr>${headers}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -455,6 +522,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindFuncPreview('fp-func',         'fp-func-preview');
   bindFuncPreview('newton-func',     'newton-func-preview');
   bindFuncPreview('newton-dfunc',    'newton-dfunc-preview');
+  bindFuncPreview('secant-func',     'secant-func-preview');
 
   // Hint chip click-to-insert
   document.addEventListener('click', (e) => {
@@ -488,6 +556,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const sidebarItems = document.querySelectorAll(".sidebar-item");
   const panels       = document.querySelectorAll(".method-panel");
+  const methodCountDisplay = document.getElementById("method-count-display");
+
+  if (methodCountDisplay) {
+    methodCountDisplay.textContent = `${sidebarItems.length} methods`;
+  }
 
   sidebarItems.forEach(item => {
     item.addEventListener("click", () => {
@@ -967,6 +1040,69 @@ document.addEventListener("DOMContentLoaded", () => {
   //  7. THOMAS ALGORITHM
   // ─────────────────────────────────────────────────────────────────
 
+  document.getElementById("form-secant").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    clearErrors(form);
+    clearResults("results-secant");
+
+    const funcEl = document.getElementById("secant-func");
+    const x0El   = document.getElementById("secant-x0");
+    const x1El   = document.getElementById("secant-x1");
+    const tolEl  = document.getElementById("secant-tol");
+    const iterEl = document.getElementById("secant-iter");
+    const btn    = document.getElementById("btn-secant");
+
+    let valid = true;
+    if (!validateRequired(funcEl, document.getElementById("err-secant-func"), "Function")) valid = false;
+    if (!validateRequired(x0El,   document.getElementById("err-secant-x0"),   "First guess x0")) valid = false;
+    if (!validateRequired(x1El,   document.getElementById("err-secant-x1"),   "Second guess x1")) valid = false;
+    if (!valid) return;
+
+    setLoading(btn, true);
+    try {
+      const data = await callApi("/api/secant", {
+        function:  normalizeFuncExpr(funcEl.value.trim()),
+        x0:        parseFloat(x0El.value),
+        x1:        parseFloat(x1El.value),
+        tolerance: parseFloat(tolEl.value) || 1e-5,
+        max_iter:  parseInt(iterEl.value) || 100,
+      });
+
+      if (!data.success) { renderError("results-secant", data.error); return; }
+
+      const r = data.result;
+      const steps = renderSteps(data.steps);
+      document.getElementById("results-secant").innerHTML = `
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.root))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+            <div class="result-answer">Root &asymp; ${r.root}</div>
+            <div class="result-meta">
+              f(root) = ${r.f_root} &nbsp;|&nbsp;
+              Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
+              Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+            </div>
+          </div>
+          ${steps.side}
+        </div>
+        ${steps.below}
+        ${renderIterationsTable(data.iterations, [
+          { key: "iter",   label: "Iter" },
+          { key: "x_prev", label: "x(n-1)" },
+          { key: "x_curr", label: "xn" },
+          { key: "x_next", label: "x(n+1)" },
+          { key: "f_x",    label: "f(x_next)" },
+          { key: "error",  label: "|Err|" },
+        ])}`;
+    } catch (err) {
+      renderError("results-secant", "Network error: " + err.message);
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+
   document.getElementById("form-thomas").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = document.getElementById("btn-thomas");
@@ -1004,6 +1140,174 @@ document.addEventListener("DOMContentLoaded", () => {
         ${steps.below}`;
     } catch (err) {
       renderError("results-thomas", "Network error: " + err.message);
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+
+  document.getElementById("form-newton_forward").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    clearErrors(form);
+    clearResults("results-newton_forward");
+
+    const xValuesEl = document.getElementById("nf-x-values");
+    const yValuesEl = document.getElementById("nf-y-values");
+    const queryEl   = document.getElementById("nf-x-query");
+    const btn       = document.getElementById("btn-newton_forward");
+
+    let valid = true;
+    if (!validateRequired(xValuesEl, document.getElementById("err-nf-x-values"), "x values")) valid = false;
+    if (!validateRequired(yValuesEl, document.getElementById("err-nf-y-values"), "y values")) valid = false;
+    if (!validateRequired(queryEl,   document.getElementById("err-nf-x-query"),  "Interpolation point")) valid = false;
+
+    let x_values = [];
+    let y_values = [];
+
+    if (valid) {
+      try {
+        x_values = parseNumberSequence(xValuesEl.value, "x values");
+      } catch (err) {
+        valid = false;
+        showFieldError(xValuesEl, document.getElementById("err-nf-x-values"), err.message);
+      }
+
+      try {
+        y_values = parseNumberSequence(yValuesEl.value, "y values");
+      } catch (err) {
+        valid = false;
+        showFieldError(yValuesEl, document.getElementById("err-nf-y-values"), err.message);
+      }
+
+      if (valid && x_values.length !== y_values.length) {
+        valid = false;
+        showFieldError(yValuesEl, document.getElementById("err-nf-y-values"), "x values and y values must have the same length.");
+      }
+    }
+
+    if (!valid) return;
+
+    setLoading(btn, true);
+    try {
+      const data = await callApi("/api/newton_forward", {
+        x_values,
+        y_values,
+        x_query: parseFloat(queryEl.value),
+      });
+
+      if (!data.success) { renderError("results-newton_forward", data.error); return; }
+
+      const r = data.result;
+      const steps = renderSteps(data.steps);
+      document.getElementById("results-newton_forward").innerHTML = `
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.value))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+            <div class="result-answer">f(${formatDisplayNumber(r.x_query)}) &asymp; ${formatDisplayNumber(r.value)}</div>
+            <div class="result-meta">
+              p = ${formatDisplayNumber(r.p)} &nbsp;|&nbsp;
+              h = ${formatDisplayNumber(r.h)} &nbsp;|&nbsp;
+              Points: ${data.x_values.length}
+            </div>
+          </div>
+          ${steps.side}
+        </div>
+        ${steps.below}
+        ${renderDifferenceTable("Forward Difference Table", data.x_values, data.difference_table, data.table_mode)}
+        ${renderIterationsTable(data.iterations, [
+          { key: "term",         label: "Term" },
+          { key: "factor",       label: "Coeff" },
+          { key: "difference",   label: "Difference" },
+          { key: "contribution", label: "Contribution" },
+          { key: "partial",      label: "Partial" },
+        ])}`;
+    } catch (err) {
+      renderError("results-newton_forward", "Network error: " + err.message);
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+
+  document.getElementById("form-newton_backward").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    clearErrors(form);
+    clearResults("results-newton_backward");
+
+    const xValuesEl = document.getElementById("nb-x-values");
+    const yValuesEl = document.getElementById("nb-y-values");
+    const queryEl   = document.getElementById("nb-x-query");
+    const btn       = document.getElementById("btn-newton_backward");
+
+    let valid = true;
+    if (!validateRequired(xValuesEl, document.getElementById("err-nb-x-values"), "x values")) valid = false;
+    if (!validateRequired(yValuesEl, document.getElementById("err-nb-y-values"), "y values")) valid = false;
+    if (!validateRequired(queryEl,   document.getElementById("err-nb-x-query"),  "Interpolation point")) valid = false;
+
+    let x_values = [];
+    let y_values = [];
+
+    if (valid) {
+      try {
+        x_values = parseNumberSequence(xValuesEl.value, "x values");
+      } catch (err) {
+        valid = false;
+        showFieldError(xValuesEl, document.getElementById("err-nb-x-values"), err.message);
+      }
+
+      try {
+        y_values = parseNumberSequence(yValuesEl.value, "y values");
+      } catch (err) {
+        valid = false;
+        showFieldError(yValuesEl, document.getElementById("err-nb-y-values"), err.message);
+      }
+
+      if (valid && x_values.length !== y_values.length) {
+        valid = false;
+        showFieldError(yValuesEl, document.getElementById("err-nb-y-values"), "x values and y values must have the same length.");
+      }
+    }
+
+    if (!valid) return;
+
+    setLoading(btn, true);
+    try {
+      const data = await callApi("/api/newton_backward", {
+        x_values,
+        y_values,
+        x_query: parseFloat(queryEl.value),
+      });
+
+      if (!data.success) { renderError("results-newton_backward", data.error); return; }
+
+      const r = data.result;
+      const steps = renderSteps(data.steps);
+      document.getElementById("results-newton_backward").innerHTML = `
+        <div class="results-split">
+          <div class="result-panel">
+            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.value))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+            <div class="result-answer">f(${formatDisplayNumber(r.x_query)}) &asymp; ${formatDisplayNumber(r.value)}</div>
+            <div class="result-meta">
+              p = ${formatDisplayNumber(r.p)} &nbsp;|&nbsp;
+              h = ${formatDisplayNumber(r.h)} &nbsp;|&nbsp;
+              Points: ${data.x_values.length}
+            </div>
+          </div>
+          ${steps.side}
+        </div>
+        ${steps.below}
+        ${renderDifferenceTable("Backward Difference Table", data.x_values, data.difference_table, data.table_mode)}
+        ${renderIterationsTable(data.iterations, [
+          { key: "term",         label: "Term" },
+          { key: "factor",       label: "Coeff" },
+          { key: "difference",   label: "Difference" },
+          { key: "contribution", label: "Contribution" },
+          { key: "partial",      label: "Partial" },
+        ])}`;
+    } catch (err) {
+      renderError("results-newton_backward", "Network error: " + err.message);
     } finally {
       setLoading(btn, false);
     }
