@@ -3,6 +3,8 @@
 A web-based calculator for numerical methods built with **Flask** (backend) and **HTML/CSS/JS** (frontend). Supports 7 methods covering root-finding, linear systems, and interpolation — each with step-by-step solution display and iteration tables.
 
 ---
+## Testing and interactivity [NMC](https://rayo.pythonanywhere.com/)
+---
 
 ## Features
 
