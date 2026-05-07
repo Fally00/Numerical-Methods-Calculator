@@ -354,6 +354,128 @@ window.toggleSteps = function(btn) {
   panel.classList.toggle("open");
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  CHART.JS INTEGRATION
+// ═══════════════════════════════════════════════════════════════════
+
+const CHART_COLORS = {
+    accent: '#8B004A',
+    accentMuted: 'rgba(139, 0, 74, 0.2)',
+    textPrimary: '#0F1A15',
+    textMuted: '#6B8C7A',
+    grid: '#C8E6DC',
+    warn: '#9B6020',
+    converged: '#2ecc71',
+    bgCard: '#EBF8F2',
+};
+
+if (typeof Chart !== 'undefined') {
+    Chart.defaults.color = CHART_COLORS.textMuted;
+    Chart.defaults.font.family = "'Raleway', sans-serif";
+    Chart.defaults.scale.grid.color = CHART_COLORS.grid;
+    Chart.defaults.scale.grid.borderColor = CHART_COLORS.grid;
+    Chart.defaults.animation = { duration: 800, easing: 'easeOutQuart' };
+}
+
+let activeCharts = {};
+
+function renderChartJS(canvasId, config) {
+    if (activeCharts[canvasId]) {
+        activeCharts[canvasId].destroy();
+    }
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    activeCharts[canvasId] = new Chart(ctx, config);
+}
+
+function getEvaluator(rawFunc) {
+    const normalized = normalizeFuncExpr(rawFunc);
+    const jsExpr = normalized
+      .replace(/\basin\b/g, '__asin').replace(/\bacos\b/g, '__acos').replace(/\batan\b/g, '__atan')
+      .replace(/\bsinh\b/g, '__sinh').replace(/\bcosh\b/g, '__cosh').replace(/\btanh\b/g, '__tanh')
+      .replace(/\bsqrt\b/g, '__sqrt').replace(/\babs\b/g, '__abs')
+      .replace(/\bsin\b/g,  '__sin').replace(/\bcos\b/g, '__cos').replace(/\btan\b/g, '__tan')
+      .replace(/\blog10\b/g,'__log10').replace(/\blog\b/g,'__log').replace(/\bexp\b/g,'__exp')
+      .replace(/\bsign\b/g, '__sign').replace(/\bceil\b/g,'__ceil').replace(/\bfloor\b/g,'__floor')
+      .replace(/\bpi\b/g,   '(Math.PI)')
+      .replace(/__asin/g, 'Math.asin').replace(/__acos/g, 'Math.acos').replace(/__atan/g, 'Math.atan')
+      .replace(/__sinh/g, 'Math.sinh').replace(/__cosh/g, 'Math.cosh').replace(/__tanh/g, 'Math.tanh')
+      .replace(/__sqrt/g, 'Math.sqrt').replace(/__abs/g,  'Math.abs')
+      .replace(/__sin/g,  'Math.sin') .replace(/__cos/g,  'Math.cos') .replace(/__tan/g,  'Math.tan')
+      .replace(/__log10/g,'Math.log10').replace(/__log/g, 'Math.log').replace(/__exp/g, 'Math.exp')
+      .replace(/__sign/g, 'Math.sign').replace(/__ceil/g,'Math.ceil').replace(/__floor/g,'Math.floor')
+      .replace(/\bx\b/g, '(x)');
+    
+    // eslint-disable-next-line no-new-func
+    return new Function('x', 'return ' + jsExpr + ';');
+}
+
+function getChartRange(iterations, keys, padRatio = 0.2) {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    iterations.forEach(row => {
+        keys.forEach(k => {
+            let v = row[k];
+            if (v !== undefined && v !== null && isFinite(v)) {
+                if (v < minX) minX = v;
+                if (v > maxX) maxX = v;
+            }
+        });
+    });
+    if (minX === Infinity) return [-10, 10];
+    if (minX === maxX) { minX -= 1; maxX += 1; }
+    let pad = (maxX - minX) * padRatio;
+    return [minX - pad, maxX + pad];
+}
+
+function generateFunctionData(evalFn, xMin, xMax, numPoints = 200) {
+    let data = [];
+    let dx = (xMax - xMin) / numPoints;
+    for (let i = 0; i <= numPoints; i++) {
+        let x = xMin + i * dx;
+        try {
+            let y = evalFn(x);
+            if (Math.abs(y) > 1e6 || isNaN(y) || !isFinite(y)) {
+                y = null;
+            }
+            data.push({ x: x, y: y });
+        } catch(e) {
+            data.push({ x: x, y: null });
+        }
+    }
+    return data;
+}
+
+function getForwardInterpolationEval(x0, h, diffTable) {
+    return function(x) {
+        let p = (x - x0) / h;
+        let sum = diffTable[0][0];
+        let pTerm = 1;
+        let fact = 1;
+        for (let i = 1; i < diffTable[0].length; i++) {
+            pTerm *= (p - (i - 1));
+            fact *= i;
+            sum += (pTerm * diffTable[0][i]) / fact;
+        }
+        return sum;
+    };
+}
+
+function getBackwardInterpolationEval(xn, h, diffTable) {
+    return function(x) {
+        let p = (x - xn) / h;
+        let n = diffTable.length - 1;
+        let sum = diffTable[n][0];
+        let pTerm = 1;
+        let fact = 1;
+        for (let i = 1; i <= n; i++) {
+            pTerm *= (p + (i - 1));
+            fact *= i;
+            sum += (pTerm * diffTable[n][i]) / fact;
+        }
+        return sum;
+    };
+}
+
 // ── Alias table: user notation → Python/SymPy compatible ──────────────────────
 const FUNC_ALIASES = [
   [/\bln\s*(?=\()/g,      'log'],       // ln( → log(
@@ -708,15 +830,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const steps = renderSteps(data.steps);
       document.getElementById("results-bisection").innerHTML = `
         <div class="results-split">
-          <div class="result-panel">
-            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
-            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-            <div class="result-answer">Root &asymp; ${r.root}</div>
-            <div class="result-meta">
-              f(root) = ${r.f_root} &nbsp;|&nbsp;
-              Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
-              Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+          <div class="results-left">
+            <div class="result-panel">
+              <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
+              <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+              <div class="result-answer">Root &asymp; ${r.root}</div>
+              <div class="result-meta">
+                f(root) = ${r.f_root} &nbsp;|&nbsp;
+                Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
+                Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+              </div>
             </div>
+            <div class="chart-wrapper"><canvas id="chart-bisection"></canvas></div>
           </div>
           ${steps.side}
         </div>
@@ -729,6 +854,63 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "f_x",   label: "f(c)" },
           { key: "error", label: "|Err|" },
         ])}`;
+
+      try {
+          const evalFn = getEvaluator(funcEl.value);
+          const [xMin, xMax] = getChartRange(data.iterations, ['a', 'b'], 0.2);
+          const curveData = generateFunctionData(evalFn, xMin, xMax);
+          const firstIter = data.iterations[0];
+          
+          renderChartJS('chart-bisection', {
+              type: 'line',
+              data: {
+                  datasets: [
+                      {
+                          label: 'f(x)',
+                          data: curveData,
+                          borderColor: CHART_COLORS.accent,
+                          borderWidth: 2,
+                          pointRadius: 0,
+                          tension: 0.1,
+                          spanGaps: false
+                      },
+                      {
+                          label: 'Point a',
+                          data: [{x: firstIter.a, y: 0}, {x: firstIter.a, y: evalFn(firstIter.a)}],
+                          borderColor: CHART_COLORS.warn,
+                          borderWidth: 1.5,
+                          borderDash: [5, 5],
+                          pointRadius: 0,
+                      },
+                      {
+                          label: 'Point b',
+                          data: [{x: firstIter.b, y: 0}, {x: firstIter.b, y: evalFn(firstIter.b)}],
+                          borderColor: CHART_COLORS.warn,
+                          borderWidth: 1.5,
+                          borderDash: [5, 5],
+                          pointRadius: 0,
+                      },
+                      {
+                          label: 'Point c (Root)',
+                          data: [{ x: r.root, y: 0 }],
+                          backgroundColor: CHART_COLORS.textPrimary,
+                          borderColor: '#fff',
+                          borderWidth: 2,
+                          pointRadius: 6,
+                          pointHoverRadius: 8,
+                          type: 'scatter'
+                      }
+                  ]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
+                  plugins: { legend: { position: 'top' } },
+                  scales: { x: { type: 'linear' } }
+              }
+          });
+      } catch(e) { console.error("Chart generation failed", e); }
     } catch (err) {
       renderError("results-bisection", "Network error: " + err.message);
     } finally {
@@ -826,15 +1008,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const steps = renderSteps(data.steps);
       document.getElementById("results-false_position").innerHTML = `
         <div class="results-split">
-          <div class="result-panel">
-            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
-            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-            <div class="result-answer">Root &asymp; ${r.root}</div>
-            <div class="result-meta">
-              f(root) = ${r.f_root} &nbsp;|&nbsp;
-              Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
-              Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+          <div class="results-left">
+            <div class="result-panel">
+              <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(r.root)}')"><i class="fa-regular fa-copy"></i> Copy</button>
+              <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+              <div class="result-answer">Root &asymp; ${r.root}</div>
+              <div class="result-meta">
+                f(root) = ${r.f_root} &nbsp;|&nbsp;
+                Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
+                Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+              </div>
             </div>
+            <div class="chart-wrapper"><canvas id="chart-false_position"></canvas></div>
           </div>
           ${steps.side}
         </div>
@@ -847,6 +1032,65 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "f_x",   label: "f(xs)" },
           { key: "error", label: "|Err|" },
         ])}`;
+
+      try {
+          const evalFn = getEvaluator(funcEl.value);
+          const [xMin, xMax] = getChartRange(data.iterations, ['a', 'b'], 0.2);
+          const curveData = generateFunctionData(evalFn, xMin, xMax);
+          const firstIter = data.iterations[0];
+          
+          renderChartJS('chart-false_position', {
+              type: 'line',
+              data: {
+                  datasets: [
+                      {
+                          label: 'f(x)',
+                          data: curveData,
+                          borderColor: CHART_COLORS.accent,
+                          borderWidth: 2,
+                          pointRadius: 0,
+                          tension: 0.1,
+                          spanGaps: false
+                      },
+                      {
+                          label: 'Secant Line (Point a to b)',
+                          data: [{x: firstIter.a, y: evalFn(firstIter.a)}, {x: firstIter.b, y: evalFn(firstIter.b)}],
+                          borderColor: CHART_COLORS.warn,
+                          borderWidth: 1.5,
+                          borderDash: [5, 5],
+                          pointRadius: 4,
+                          backgroundColor: CHART_COLORS.warn
+                      },
+                      {
+                          label: 'Point c (Intersection)',
+                          data: [{ x: firstIter.x, y: 0 }],
+                          backgroundColor: CHART_COLORS.warn,
+                          borderColor: '#fff',
+                          borderWidth: 2,
+                          pointRadius: 5,
+                          type: 'scatter'
+                      },
+                      {
+                          label: 'Final Root',
+                          data: [{ x: r.root, y: 0 }],
+                          backgroundColor: CHART_COLORS.textPrimary,
+                          borderColor: '#fff',
+                          borderWidth: 2,
+                          pointRadius: 6,
+                          pointHoverRadius: 8,
+                          type: 'scatter'
+                      }
+                  ]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
+                  plugins: { legend: { position: 'top' } },
+                  scales: { x: { type: 'linear' } }
+              }
+          });
+      } catch(e) { console.error("Chart generation failed", e); }
     } catch (err) {
       renderError("results-false_position", "Network error: " + err.message);
     } finally {
@@ -1003,10 +1247,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const steps = renderSteps(data.steps);
       document.getElementById("results-newton").innerHTML = `
         <div class="results-split">
-          <div class="result-panel">
-            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(data.result)}')"><i class="fa-regular fa-copy"></i> Copy</button>
-            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-            <div class="result-answer">Root &asymp; ${data.result}</div>
+          <div class="results-left">
+            <div class="result-panel">
+              <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(data.result)}')"><i class="fa-regular fa-copy"></i> Copy</button>
+              <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+              <div class="result-answer">Root &asymp; ${data.result}</div>
+            </div>
+            <div class="chart-wrapper"><canvas id="chart-newton"></canvas></div>
           </div>
           ${steps.side}
         </div>
@@ -1017,6 +1264,71 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "fx",    label: "f(x)" },
           { key: "error", label: "|Err|" },
         ])}`;
+
+      try {
+          const evalFn = getEvaluator(funcEl.value);
+          const [xMin, xMax] = getChartRange(data.iterations, ['x'], 0.2);
+          const curveData = generateFunctionData(evalFn, xMin, xMax);
+          const guesses = data.iterations.map(it => ({ x: it.x, y: 0 }));
+          
+          let datasets = [
+              {
+                  label: 'f(x)',
+                  data: curveData,
+                  borderColor: CHART_COLORS.accent,
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  tension: 0.1,
+                  spanGaps: false
+              },
+              {
+                  label: 'Guesses',
+                  data: guesses,
+                  backgroundColor: CHART_COLORS.warn,
+                  borderColor: '#fff',
+                  borderWidth: 1,
+                  pointRadius: 4,
+                  type: 'scatter'
+              }
+          ];
+
+          if (data.iterations.length >= 2) {
+              const last = data.iterations[data.iterations.length - 1];
+              const prev = data.iterations[data.iterations.length - 2];
+              datasets.push({
+                  label: 'Final Tangent',
+                  data: [{ x: prev.x, y: evalFn(prev.x) }, { x: last.x, y: 0 }],
+                  borderColor: CHART_COLORS.warn,
+                  borderWidth: 1.5,
+                  borderDash: [5, 5],
+                  pointRadius: 3,
+                  backgroundColor: CHART_COLORS.warn
+              });
+          }
+
+          datasets.push({
+              label: 'Final Root',
+              data: [{ x: data.result, y: 0 }],
+              backgroundColor: CHART_COLORS.textPrimary,
+              borderColor: '#fff',
+              borderWidth: 2,
+              pointRadius: 6,
+              pointHoverRadius: 8,
+              type: 'scatter'
+          });
+          
+          renderChartJS('chart-newton', {
+              type: 'line',
+              data: { datasets },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
+                  plugins: { legend: { position: 'top' } },
+                  scales: { x: { type: 'linear' } }
+              }
+          });
+      } catch(e) { console.error("Chart generation failed", e); }
     } catch (err) {
       renderError("results-newton", "Network error: " + err.message);
     } finally {
@@ -1063,15 +1375,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const steps = renderSteps(data.steps);
       document.getElementById("results-secant").innerHTML = `
         <div class="results-split">
-          <div class="result-panel">
-            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.root))}')"><i class="fa-regular fa-copy"></i> Copy</button>
-            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-            <div class="result-answer">Root &asymp; ${r.root}</div>
-            <div class="result-meta">
-              f(root) = ${r.f_root} &nbsp;|&nbsp;
-              Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
-              Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+          <div class="results-left">
+            <div class="result-panel">
+              <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.root))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+              <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+              <div class="result-answer">Root &asymp; ${r.root}</div>
+              <div class="result-meta">
+                f(root) = ${r.f_root} &nbsp;|&nbsp;
+                Iterations: ${r.iterations_taken} &nbsp;|&nbsp;
+                Converged: ${r.converged ? "\u2713 Yes" : "\u2717 No"}
+              </div>
             </div>
+            <div class="chart-wrapper"><canvas id="chart-secant"></canvas></div>
           </div>
           ${steps.side}
         </div>
@@ -1084,6 +1399,69 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "f_x",    label: "f(x_next)" },
           { key: "error",  label: "|Err|" },
         ])}`;
+
+      try {
+          const evalFn = getEvaluator(funcEl.value);
+          const [xMin, xMax] = getChartRange(data.iterations, ['x_curr', 'x_prev', 'x_next'], 0.2);
+          const curveData = generateFunctionData(evalFn, xMin, xMax);
+          
+          let datasets = [
+              {
+                  label: 'f(x)',
+                  data: curveData,
+                  borderColor: CHART_COLORS.accent,
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  tension: 0.1,
+                  spanGaps: false
+              }
+          ];
+
+          if (data.iterations.length > 0) {
+              const last = data.iterations[data.iterations.length - 1];
+              datasets.push({
+                  label: 'Last Secant Line',
+                  data: [{ x: last.x_prev, y: evalFn(last.x_prev) }, { x: last.x_curr, y: evalFn(last.x_curr) }, { x: last.x_next, y: 0 }],
+                  borderColor: CHART_COLORS.warn,
+                  borderWidth: 1.5,
+                  borderDash: [5, 5],
+                  pointRadius: 3,
+                  backgroundColor: CHART_COLORS.warn
+              });
+              datasets.push({
+                  label: 'Intersection',
+                  data: [{ x: last.x_next, y: 0 }],
+                  backgroundColor: CHART_COLORS.warn,
+                  borderColor: '#fff',
+                  borderWidth: 2,
+                  pointRadius: 5,
+                  type: 'scatter'
+              });
+          }
+
+          datasets.push({
+              label: 'Final Root',
+              data: [{ x: r.root, y: 0 }],
+              backgroundColor: CHART_COLORS.textPrimary,
+              borderColor: '#fff',
+              borderWidth: 2,
+              pointRadius: 6,
+              pointHoverRadius: 8,
+              type: 'scatter'
+          });
+          
+          renderChartJS('chart-secant', {
+              type: 'line',
+              data: { datasets },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
+                  plugins: { legend: { position: 'top' } },
+                  scales: { x: { type: 'linear' } }
+              }
+          });
+      } catch(e) { console.error("Chart generation failed", e); }
     } catch (err) {
       renderError("results-secant", "Network error: " + err.message);
     } finally {
@@ -1189,15 +1567,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const steps = renderSteps(data.steps);
       document.getElementById("results-newton_forward").innerHTML = `
         <div class="results-split">
-          <div class="result-panel">
-            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.value))}')"><i class="fa-regular fa-copy"></i> Copy</button>
-            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-            <div class="result-answer">f(${formatDisplayNumber(r.x_query)}) &asymp; ${formatDisplayNumber(r.value)}</div>
-            <div class="result-meta">
-              p = ${formatDisplayNumber(r.p)} &nbsp;|&nbsp;
-              h = ${formatDisplayNumber(r.h)} &nbsp;|&nbsp;
-              Points: ${data.x_values.length}
+          <div class="results-left">
+            <div class="result-panel">
+              <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.value))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+              <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+              <div class="result-answer">f(${formatDisplayNumber(r.x_query)}) &asymp; ${formatDisplayNumber(r.value)}</div>
+              <div class="result-meta">
+                p = ${formatDisplayNumber(r.p)} &nbsp;|&nbsp;
+                h = ${formatDisplayNumber(r.h)} &nbsp;|&nbsp;
+                Points: ${data.x_values.length}
+              </div>
             </div>
+            <div class="chart-wrapper"><canvas id="chart-newton_forward"></canvas></div>
           </div>
           ${steps.side}
         </div>
@@ -1210,6 +1591,68 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "contribution", label: "Contribution" },
           { key: "partial",      label: "Partial" },
         ])}`;
+
+      try {
+          const evalFn = getForwardInterpolationEval(data.x_values[0], r.h, data.difference_table);
+          let minX = Math.min(...data.x_values, r.x_query);
+          let maxX = Math.max(...data.x_values, r.x_query);
+          let pad = (maxX - minX) * 0.1;
+          const curveData = generateFunctionData(evalFn, minX - pad, maxX + pad);
+          
+          const origPoints = data.x_values.map((x, i) => ({ x: x, y: y_values[i] }));
+          
+          renderChartJS('chart-newton_forward', {
+              type: 'line',
+              data: {
+                  datasets: [
+                      {
+                          label: 'Interpolated Curve',
+                          data: curveData,
+                          borderColor: CHART_COLORS.accent,
+                          borderWidth: 2,
+                          pointRadius: 0,
+                          tension: 0.4,
+                          spanGaps: false
+                      },
+                      {
+                          label: 'Data Points',
+                          data: origPoints,
+                          backgroundColor: CHART_COLORS.textPrimary,
+                          borderColor: '#fff',
+                          borderWidth: 2,
+                          pointRadius: 5,
+                          type: 'scatter'
+                      },
+                      {
+                          label: 'Query Line',
+                          data: [{ x: r.x_query, y: 0 }, { x: r.x_query, y: r.value }],
+                          borderColor: CHART_COLORS.warn,
+                          borderWidth: 1.5,
+                          borderDash: [5, 5],
+                          pointRadius: 0,
+                          type: 'line'
+                      },
+                      {
+                          label: 'Evaluated Point',
+                          data: [{ x: r.x_query, y: r.value }],
+                          backgroundColor: CHART_COLORS.warn,
+                          borderColor: '#fff',
+                          borderWidth: 2,
+                          pointRadius: 7,
+                          pointHoverRadius: 9,
+                          type: 'scatter'
+                      }
+                  ]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
+                  plugins: { legend: { position: 'top' } },
+                  scales: { x: { type: 'linear' } }
+              }
+          });
+      } catch(e) { console.error("Chart generation failed", e); }
     } catch (err) {
       renderError("results-newton_forward", "Network error: " + err.message);
     } finally {
@@ -1273,15 +1716,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const steps = renderSteps(data.steps);
       document.getElementById("results-newton_backward").innerHTML = `
         <div class="results-split">
-          <div class="result-panel">
-            <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.value))}')"><i class="fa-regular fa-copy"></i> Copy</button>
-            <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
-            <div class="result-answer">f(${formatDisplayNumber(r.x_query)}) &asymp; ${formatDisplayNumber(r.value)}</div>
-            <div class="result-meta">
-              p = ${formatDisplayNumber(r.p)} &nbsp;|&nbsp;
-              h = ${formatDisplayNumber(r.h)} &nbsp;|&nbsp;
-              Points: ${data.x_values.length}
+          <div class="results-left">
+            <div class="result-panel">
+              <button class="result-copy-btn" onclick="copyResultText(this, '${escHtml(String(r.value))}')"><i class="fa-regular fa-copy"></i> Copy</button>
+              <div class="result-panel-title"><i class="fa-solid fa-bullseye"></i> Result</div>
+              <div class="result-answer">f(${formatDisplayNumber(r.x_query)}) &asymp; ${formatDisplayNumber(r.value)}</div>
+              <div class="result-meta">
+                p = ${formatDisplayNumber(r.p)} &nbsp;|&nbsp;
+                h = ${formatDisplayNumber(r.h)} &nbsp;|&nbsp;
+                Points: ${data.x_values.length}
+              </div>
             </div>
+            <div class="chart-wrapper"><canvas id="chart-newton_backward"></canvas></div>
           </div>
           ${steps.side}
         </div>
@@ -1294,6 +1740,68 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "contribution", label: "Contribution" },
           { key: "partial",      label: "Partial" },
         ])}`;
+
+      try {
+          const evalFn = getBackwardInterpolationEval(data.x_values[data.x_values.length - 1], r.h, data.difference_table);
+          let minX = Math.min(...data.x_values, r.x_query);
+          let maxX = Math.max(...data.x_values, r.x_query);
+          let pad = (maxX - minX) * 0.1;
+          const curveData = generateFunctionData(evalFn, minX - pad, maxX + pad);
+          
+          const origPoints = data.x_values.map((x, i) => ({ x: x, y: y_values[i] }));
+          
+          renderChartJS('chart-newton_backward', {
+              type: 'line',
+              data: {
+                  datasets: [
+                      {
+                          label: 'Interpolated Curve',
+                          data: curveData,
+                          borderColor: CHART_COLORS.accent,
+                          borderWidth: 2,
+                          pointRadius: 0,
+                          tension: 0.4,
+                          spanGaps: false
+                      },
+                      {
+                          label: 'Data Points',
+                          data: origPoints,
+                          backgroundColor: CHART_COLORS.textPrimary,
+                          borderColor: '#fff',
+                          borderWidth: 2,
+                          pointRadius: 5,
+                          type: 'scatter'
+                      },
+                      {
+                          label: 'Query Line',
+                          data: [{ x: r.x_query, y: 0 }, { x: r.x_query, y: r.value }],
+                          borderColor: CHART_COLORS.warn,
+                          borderWidth: 1.5,
+                          borderDash: [5, 5],
+                          pointRadius: 0,
+                          type: 'line'
+                      },
+                      {
+                          label: 'Evaluated Point',
+                          data: [{ x: r.x_query, y: r.value }],
+                          backgroundColor: CHART_COLORS.warn,
+                          borderColor: '#fff',
+                          borderWidth: 2,
+                          pointRadius: 7,
+                          pointHoverRadius: 9,
+                          type: 'scatter'
+                      }
+                  ]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
+                  plugins: { legend: { position: 'top' } },
+                  scales: { x: { type: 'linear' } }
+              }
+          });
+      } catch(e) { console.error("Chart generation failed", e); }
     } catch (err) {
       renderError("results-newton_backward", "Network error: " + err.message);
     } finally {

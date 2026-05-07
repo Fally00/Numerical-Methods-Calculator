@@ -433,6 +433,24 @@ body {
 }
 
 /* ===================================================================
+   CHART COMPONENT
+=================================================================== */
+
+.chart-wrapper {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: var(--shadow-card);
+  animation: panel-fade 0.3s ease;
+  position: relative;
+  height: 340px;
+  width: 100%;
+}
+
+
+/* ===================================================================
    FORMS
 =================================================================== */
 
@@ -825,8 +843,14 @@ body {
 .results-split .result-panel { margin: 0; }
 .results-split .steps-panel  { margin: 0; }
 
+.results-left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .steps-panel-fixed {
-  max-height: 420px;
+  max-height: 481px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -835,7 +859,6 @@ body {
 .steps-panel-fixed .steps-body {
   display: block;
   flex: 1;
-  max-height: 360px;
   overflow-y: auto;
 }
 
