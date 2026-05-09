@@ -1019,6 +1019,7 @@ body {
 .steps-panel.open .steps-body {
   display: block;
   max-height: none;
+  flex: 1;
 }
 
 /* ── Step line types ── */
