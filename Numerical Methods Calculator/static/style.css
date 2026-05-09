@@ -855,6 +855,13 @@ body {
   flex-direction: column;
 }
 
+@media (min-width: 769px) {
+  .steps-panel-fixed {
+    height: 0;
+    min-height: 100%;
+  }
+}
+
 .steps-panel-fixed .steps-body {
   display: block;
   flex: 1;
