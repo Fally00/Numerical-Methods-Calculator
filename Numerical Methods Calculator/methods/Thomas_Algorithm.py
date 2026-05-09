@@ -34,7 +34,21 @@ def thomas_method(params: dict) -> dict:
         a_full = [0.0] + list(a)   # a_full[0] unused
         c_full = list(c) + [0.0]   # c_full[n-1] unused
 
+        # Check diagonal dominance
+        is_diagonally_dominant = True
+        for i in range(n):
+            a_val = abs(a_full[i]) if i > 0 else 0
+            c_val = abs(c_full[i]) if i < n - 1 else 0
+            if abs(b[i]) < a_val + c_val:
+                is_diagonally_dominant = False
+                break
+        
         steps = []
+        if not is_diagonally_dominant:
+            steps.append("WARNING: Matrix is not strictly diagonally dominant. Thomas Algorithm may be numerically unstable.")
+        else:
+            steps.append("Matrix is strictly diagonally dominant. Stability is guaranteed.")
+
         steps.append(f"System size: n = {n}")
         steps.append(f"a (sub-diag)   = {a}")
         steps.append(f"b (main diag)  = {b}")

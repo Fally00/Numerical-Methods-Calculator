@@ -21,6 +21,10 @@ def doolittle_method(params: dict) -> dict:
         if b and isinstance(b[0], list):
             b = [item[0] for item in b]
 
+        # Convert elements to float
+        A = [[float(val) for val in row] for row in A]
+        b = [float(val) for val in b]
+
         if len(b) != n:
             raise ValueError("Vector b length must match the dimensions of Matrix A.")
 
@@ -34,9 +38,12 @@ def doolittle_method(params: dict) -> dict:
         for i in range(n):
             L[i][i] = 1.0
 
+        def format_matrix(M):
+            return "[" + ", ".join("[" + ", ".join(f"{val:.4g}" for val in row) + "]" for row in M) + "]"
+
         steps.append("Initial state:")
-        steps.append(f"A = {A}")
-        steps.append(f"b = {b}")
+        steps.append(f"A = {format_matrix(A)}")
+        steps.append(f"b = [{', '.join(f'{val:.4g}' for val in b)}]")
 
         # LU Decomposition
         for i in range(n):
@@ -50,11 +57,18 @@ def doolittle_method(params: dict) -> dict:
 
             # Form the Lower Triangular matrix (L)
             for k in range(i + 1, n):
-                if U[i][i] == 0:
-                    raise ValueError(f"Zero division error at U[{i}][{i}], factorization failed.")
+                if abs(U[i][i]) < 1e-12:
+                    raise ValueError(f"Zero pivot encountered at U[{i}][{i}]. Strict Doolittle LU does not support row pivoting and fails for this matrix.")
                 sum_l = sum(L[k][j] * U[j][i] for j in range(i))
                 L[k][i] = (A[k][i] - sum_l) / U[i][i]
                 steps.append(f"L[{k}][{i}] = ({A[k][i]} - {sum_l:.4f}) / {U[i][i]:.4f} = {L[k][i]:.4f}")
+
+        # Check for singular matrix (determinant = product of U's diagonal)
+        det_U = 1.0
+        for i in range(n):
+            det_U *= U[i][i]
+        if abs(det_U) < 1e-12:
+            raise ValueError("Matrix is singular (determinant is practically zero). The system has no unique solution.")
 
         steps.append("--- LU Decomposition Complete ---")
         steps.append(f"L = {[[round(val, 4) for val in row] for row in L]}")
