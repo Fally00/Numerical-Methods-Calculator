@@ -837,7 +837,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 340px;
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .results-split .result-panel { margin: 0; }
@@ -850,7 +850,6 @@ body {
 }
 
 .steps-panel-fixed {
-  max-height: 481px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1017,7 +1016,10 @@ body {
   background-color: var(--bg-canvas);
 }
 
-.steps-panel.open .steps-body { display: block; }
+.steps-panel.open .steps-body {
+  display: block;
+  max-height: none;
+}
 
 /* ── Step line types ── */
 
