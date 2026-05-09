@@ -351,7 +351,13 @@ function escHtml(str) {
 
 window.toggleSteps = function(btn) {
   const panel = btn.closest(".steps-panel");
-  panel.classList.toggle("open");
+  if(panel.classList.contains("open")) {
+    panel.classList.remove("open")
+    document.querySelector(".steps-body").style.display = "none"
+  } else {
+    panel.classList.add("open")
+    document.querySelector(".steps-body").style.display = "block"
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
