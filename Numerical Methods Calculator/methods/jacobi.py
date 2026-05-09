@@ -71,6 +71,7 @@ def jacobi_method(params: dict) -> dict:
         x0       = params.get("x0")
         tol      = float(params.get("tolerance", 1e-3))
         max_iter = int(params.get("max_iter", 100))
+        prec     = int(params.get("precision", 6))
 
         if A is None or b is None or x0 is None:
             raise ValueError("Parameters 'A', 'b', and 'x0' are required.")
@@ -99,12 +100,10 @@ def jacobi_method(params: dict) -> dict:
 
         dom_checks = _check_diagonal_dominance(A)
         all_dominant = all(c["dominant"] for c in dom_checks)
-        steps.append(
-            "Diagonal dominance check: "
-            + ("PASS — all rows satisfy |a_ii| ≥ Σ|a_ij|." if all_dominant
-               else "WARNING — not all rows are strictly diagonally dominant; "
-                    "convergence is not guaranteed.")
-        )
+        if not all_dominant:
+            raise ValueError("Matrix is not diagonally dominant even after rearrangement. Jacobi method is not guaranteed to converge and is inapplicable for this system.")
+
+        steps.append("Diagonal dominance check: PASS — all rows satisfy |a_ii| ≥ Σ|a_ij|.")
 
         # ── Jacobi equation form ───────────────────────────────────────────────
         eq_strings = _build_jacobi_equations(A, b)
@@ -116,26 +115,42 @@ def jacobi_method(params: dict) -> dict:
         x_new = x0[:]
         iterations: list[dict] = []
         stag = 0
+        prev_error = float('inf')
+        divergence_count = 0
 
         for it in range(1, max_iter + 1):
             for i in range(n):
+                if A[i][i] == 0:
+                    raise ValueError(f"Zero diagonal element found at row {i+1}. Jacobi method fails.")
                 sigma = sum(A[i][j] * x[j] for j in range(n) if j != i)
                 x_new[i] = (b[i] - sigma) / A[i][i]
 
             error = max(abs(x_new[i] - x[i]) for i in range(n))
+            max_val = max((abs(v) for v in x_new), default=0.0)
+            ea = (error / max_val * 100) if max_val != 0 else 0.0
 
-            x_rounded   = [round(v, 6) for v in x]
-            xnw_rounded = [round(v, 6) for v in x_new]
+            x_rounded   = [round(v, prec) for v in x]
+            xnw_rounded = [round(v, prec) for v in x_new]
 
             iterations.append({
                 "iter":  it,
                 "x_old": x_rounded,
                 "x_new": xnw_rounded,
-                "error": round(error, 6),
+                "error": round(error, prec),
+                "ea":    round(ea, prec),
             })
             steps.append(
-                f"Iteration {it}: x = {xnw_rounded}  |  error = {error:.6f}"
+                f"Iteration {it}: x = {xnw_rounded}  |  error = {error:.{prec}f}, Ea = {ea:.4f}%"
             )
+
+            if error > prev_error * 1.5 and it > 2:
+                divergence_count += 1
+                if divergence_count >= 3 or error > 1e6:
+                    steps.append(f"Divergence detected at iteration {it}: Error is increasing rapidly.")
+                    raise ValueError(f"Method diverges: Error reached {error:.4e}. Matrix properties may be unsuitable.")
+            else:
+                divergence_count = 0
+            prev_error = error
 
             if error < tol:
                 steps.append(f"Converged after {it} iterations (error < {tol}).")
@@ -159,7 +174,7 @@ def jacobi_method(params: dict) -> dict:
             )
 
         result = {
-            "solution":   [round(v, 6) for v in x],
+            "solution":   [round(v, prec) for v in x],
             "converged":  error < tol,
             "iterations_taken": len(iterations),
             "dominance_checks": dom_checks,

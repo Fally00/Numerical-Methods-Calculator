@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from sympy import symbols, sympify, lambdify
+from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import re
+import math
 
 bp = Blueprint("false_position", __name__)
 
@@ -18,6 +20,25 @@ def _preprocess_func(s: str) -> str:
     s = re.sub(r'\be\b', 'E', s)   # bare e → SymPy E
     s = s.replace('^', '**')
     return s
+
+
+def _parse_and_lambdify(func_str: str):
+    """Parses mathematical expression robustly and handles implicit multiplication."""
+    s = _preprocess_func(func_str)
+    transformations = standard_transformations + (implicit_multiplication_application,)
+    expr = parse_expr(s, transformations=transformations)
+    return expr, lambdify(_x, expr, "math")
+
+
+def safe_eval(f, val):
+    try:
+        return f(val)
+    except ValueError as e:
+        if "math domain error" in str(e).lower() or "complex" in str(e).lower() or "out of domain" in str(e).lower():
+            raise ValueError(f"Domain error at x = {val}: Function is undefined (e.g., log of negative number).")
+        raise
+    except ZeroDivisionError:
+        raise ValueError(f"Domain error at x = {val}: Division by zero encountered.")
 
 
 
@@ -42,8 +63,7 @@ def false_position_method(params: dict) -> dict:
         b = float(b)
 
         # ── Preprocess then parse function with SymPy ──────────────────────────
-        expr = sympify(_preprocess_func(func_str))
-        f    = lambdify(_x, expr, "math")
+        expr, f = _parse_and_lambdify(func_str)
 
 
         steps: list[str] = []
@@ -51,15 +71,29 @@ def false_position_method(params: dict) -> dict:
         steps.append(f"Initial interval: a = {a}, b = {b}")
 
         # ── Bracket check ──────────────────────────────────────────────────────
-        fa = f(a)
-        fb = f(b)
+        fa = safe_eval(f, a)
+        fb = safe_eval(f, b)
 
         steps.append(f"f(a) = f({a}) = {round(fa, 6)}")
         steps.append(f"f(b) = f({b}) = {round(fb, 6)}")
 
         if fa * fb >= 0:
+            suggestion = ""
+            step_size = max(0.1, abs(b - a) / 5)
+            for i in range(1, 100):
+                new_a = a - i * step_size
+                new_b = b + i * step_size
+                try:
+                    if safe_eval(f, new_a) * fa < 0:
+                        suggestion = f" Hint: A sign change was detected near [{new_a:.2f}, {a:.2f}]."
+                        break
+                    if safe_eval(f, new_b) * fb < 0:
+                        suggestion = f" Hint: A sign change was detected near [{b:.2f}, {new_b:.2f}]."
+                        break
+                except ValueError:
+                    continue
             raise ValueError(
-                "f(a) and f(b) must have opposite signs to guarantee a root in [a, b]."
+                f"f(a) and f(b) must have opposite signs to guarantee a root in [a, b].{suggestion}"
             )
 
         steps.append("Bracket condition satisfied: f(a) · f(b) < 0.")
@@ -71,13 +105,17 @@ def false_position_method(params: dict) -> dict:
         stag       = 0          # consecutive stagnation counter
 
         for it in range(1, max_iter + 1):
-            fa = f(a)
-            fb = f(b)
+            fa = safe_eval(f, a)
+            fb = safe_eval(f, b)
+
+            if abs(fb - fa) < 1e-15:
+                raise ValueError(f"Iteration {it} failed: Division by zero (f(b) ≈ f(a)). Method diverges.")
 
             # False Position (Regula Falsi) formula
             xs   = (a * fb - b * fa) / (fb - fa)
-            fxs  = f(xs)
+            fxs  = safe_eval(f, xs)
             error = abs(xs - xs_prev)
+            ea = abs((xs - xs_prev) / xs) * 100 if xs != 0 else 0.0
 
             iterations.append({
                 "iter":  it,
@@ -86,11 +124,12 @@ def false_position_method(params: dict) -> dict:
                 "x":     round(xs,  6),
                 "f_x":   round(fxs, 6),
                 "error": round(error, 6),
+                "ea":    round(ea, 6),
             })
 
             steps.append(
                 f"Iteration {it}: a = {a:.6f}, b = {b:.6f}, "
-                f"xs = {xs:.6f}, f(xs) = {fxs:.6f}, |error| = {error:.6f}"
+                f"xs = {xs:.6f}, f(xs) = {fxs:.6f}, |error| = {error:.6f}, Ea = {ea:.4f}%"
             )
 
             # Tolerance convergence (skip iteration 1)

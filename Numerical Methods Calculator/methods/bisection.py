@@ -3,8 +3,9 @@
 
 from flask import Blueprint, request, jsonify
 from sympy import symbols, sympify, lambdify
-
+from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import re
+import math
 
 bp = Blueprint("bisection", __name__)
 
@@ -25,6 +26,25 @@ def _preprocess_func(s: str) -> str:
     # Power notation (SymPy also accepts ^, but be safe)
     s = s.replace('^', '**')
     return s
+
+
+def _parse_and_lambdify(func_str: str):
+    """Parses mathematical expression robustly and handles implicit multiplication."""
+    s = _preprocess_func(func_str)
+    transformations = standard_transformations + (implicit_multiplication_application,)
+    expr = parse_expr(s, transformations=transformations)
+    return expr, lambdify(_x, expr, "math")
+
+
+def safe_eval(f, val):
+    try:
+        return f(val)
+    except ValueError as e:
+        if "math domain error" in str(e).lower() or "complex" in str(e).lower() or "out of domain" in str(e).lower():
+            raise ValueError(f"Domain error at x = {val}: Function is undefined (e.g., log of negative number).")
+        raise
+    except ZeroDivisionError:
+        raise ValueError(f"Domain error at x = {val}: Division by zero encountered.")
 
 
 # ── Core function ───────────────────────────────────────────────────────────────
@@ -48,8 +68,7 @@ def bisection_method(params: dict) -> dict:
         b = float(b)
 
         # ── Preprocess then parse function with SymPy ──────────────────────────
-        expr = sympify(_preprocess_func(func_str))
-        f    = lambdify(_x, expr, "math")
+        expr, f = _parse_and_lambdify(func_str)
 
 
         steps: list[str] = []
@@ -57,15 +76,29 @@ def bisection_method(params: dict) -> dict:
         steps.append(f"Initial interval: a = {a}, b = {b}")
 
         # ── Bracket check ──────────────────────────────────────────────────────
-        fa = f(a)
-        fb = f(b)
+        fa = safe_eval(f, a)
+        fb = safe_eval(f, b)
 
         steps.append(f"f(a) = f({a}) = {round(fa, 6)}")
         steps.append(f"f(b) = f({b}) = {round(fb, 6)}")
 
         if fa * fb >= 0:
+            suggestion = ""
+            step_size = max(0.1, abs(b - a) / 5)
+            for i in range(1, 100):
+                new_a = a - i * step_size
+                new_b = b + i * step_size
+                try:
+                    if safe_eval(f, new_a) * fa < 0:
+                        suggestion = f" Hint: A sign change was detected near [{new_a:.2f}, {a:.2f}]."
+                        break
+                    if safe_eval(f, new_b) * fb < 0:
+                        suggestion = f" Hint: A sign change was detected near [{b:.2f}, {new_b:.2f}]."
+                        break
+                except ValueError:
+                    continue
             raise ValueError(
-                "f(a) and f(b) must have opposite signs to guarantee a root in [a, b]."
+                f"f(a) and f(b) must have opposite signs to guarantee a root in [a, b].{suggestion}"
             )
 
         steps.append("Bracket condition satisfied: f(a) · f(b) < 0.")
@@ -79,10 +112,11 @@ def bisection_method(params: dict) -> dict:
         for it in range(1, max_iter + 1):
             # Standard midpoint formula
             c   = (a + b) / 2.0
-            fc  = f(c)
-            fa  = f(a)
+            fc  = safe_eval(f, c)
+            fa  = safe_eval(f, a)
 
             error = abs(c - c_prev)
+            ea = abs((c - c_prev) / c) * 100 if c != 0 else 0.0
 
             iterations.append({
                 "iter":  it,
@@ -91,11 +125,12 @@ def bisection_method(params: dict) -> dict:
                 "x":     round(c,  6),
                 "f_x":   round(fc, 6),
                 "error": round(error, 6),
+                "ea":    round(ea, 6),
             })
 
             steps.append(
                 f"Iteration {it}: a = {a:.6f}, b = {b:.6f}, "
-                f"c = (a+b)/2 = {c:.6f}, f(c) = {fc:.6f}, |error| = {error:.6f}"
+                f"c = (a+b)/2 = {c:.6f}, f(c) = {fc:.6f}, |error| = {error:.6f}, Ea = {ea:.4f}%"
             )
 
             # Tolerance convergence (skip iteration 1)

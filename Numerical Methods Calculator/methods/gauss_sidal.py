@@ -14,6 +14,7 @@ def gauss_seidel_method(params: dict) -> dict:
         x0       = params.get("x0")
         tol      = float(params.get("tolerance", 1e-6))
         max_iter = int(params.get("max_iter", 100))
+        prec     = int(params.get("precision", 6))
 
         if A is None or b is None:
             raise ValueError("Parameters 'A' and 'b' are required.")
@@ -23,6 +24,17 @@ def gauss_seidel_method(params: dict) -> dict:
         x  = np.array(x0, dtype=float) if x0 is not None else np.zeros(len(b))
 
         n = len(b)
+        
+        def _check_diagonal_dominance(mat):
+            for i in range(n):
+                diag = abs(mat[i, i])
+                off_sum = sum(abs(mat[i, j]) for j in range(n) if j != i)
+                if diag < off_sum:
+                    return False
+            return True
+
+        if not _check_diagonal_dominance(A):
+            raise ValueError("Matrix is not strictly diagonally dominant. Gauss-Seidel method is not guaranteed to converge and may be inapplicable.")
         steps = []
         iterations = []
 
@@ -41,16 +53,19 @@ def gauss_seidel_method(params: dict) -> dict:
                 x_new[i] = (b[i] - sum1 - sum2) / A[i][i]
 
             error = float(np.linalg.norm(x_new - x_old, ord=np.inf))
+            max_val = float(np.linalg.norm(x_new, ord=np.inf))
+            ea = (error / max_val * 100) if max_val != 0 else 0.0
 
             iterations.append({
                 "iter":  iteration + 1,
-                "x_old": [round(float(v), 6) for v in x_old],
-                "x_new": [round(float(v), 6) for v in x_new],
-                "error": round(error, 8),
+                "x_old": [round(float(v), prec) for v in x_old],
+                "x_new": [round(float(v), prec) for v in x_new],
+                "error": round(error, prec),
+                "ea":    round(ea, prec),
             })
 
             steps.append(
-                f"Iter {iteration + 1}: x = {[round(float(v), 6) for v in x_new]}  |  max|error| = {error:.8f}"
+                f"Iter {iteration + 1}: x = {[round(float(v), prec) for v in x_new]}  |  max|error| = {error:.{prec}f}, Ea = {ea:.4f}%"
             )
 
             x = x_new
@@ -73,7 +88,7 @@ def gauss_seidel_method(params: dict) -> dict:
             steps.append(f"Did not converge within {max_iter} iterations.")
 
         result = {
-            "solution":        [round(float(v), 6) for v in x],
+            "solution":        [round(float(v), prec) for v in x],
             "converged":       converged,
             "iterations_taken": len(iterations),
         }

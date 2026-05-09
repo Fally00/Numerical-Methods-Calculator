@@ -859,6 +859,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "x",     label: "Mid c" },
           { key: "f_x",   label: "f(c)" },
           { key: "error", label: "|Err|" },
+          { key: "ea",    label: "Ea (%)" },
         ])}`;
 
       try {
@@ -1037,6 +1038,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "x",     label: "xs" },
           { key: "f_x",   label: "f(xs)" },
           { key: "error", label: "|Err|" },
+          { key: "ea",    label: "Ea (%)" },
         ])}`;
 
       try {
@@ -1153,6 +1155,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "x_old", label: "x (prev)" },
           { key: "x_new", label: "x (new)" },
           { key: "error", label: "|Err|" },
+          { key: "ea",    label: "Ea (%)" },
         ])}`;
     } catch (err) {
       renderError("results-gauss_seidel", "Network error: " + err.message);
@@ -1207,6 +1210,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { key: "x_old", label: "x (prev)" },
           { key: "x_new", label: "x (new)" },
           { key: "error", label: "|Err|" },
+          { key: "ea",    label: "Ea (%)" },
         ])}`;
     } catch (err) {
       renderError("results-jacobi", "Network error: " + err.message);
